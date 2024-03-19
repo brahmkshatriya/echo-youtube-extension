@@ -18,20 +18,20 @@ class MediaItemsContainerComparator : DiffUtil.ItemCallback<MediaItemsContainer>
 
             is MediaItemsContainer.TrackItem -> {
                 val newTrack = newItem as? MediaItemsContainer.TrackItem
-                oldItem.track.uri == newTrack?.track?.uri
+                oldItem.track.id == newTrack?.track?.id
             }
 
             is MediaItemsContainer.AlbumItem -> {
                 val newAlbum = newItem as? MediaItemsContainer.AlbumItem
-                oldItem.album.uri == newAlbum?.album?.uri
+                oldItem.album.id == newAlbum?.album?.id
             }
             is MediaItemsContainer.ArtistItem -> {
                 val newArtist = newItem as? MediaItemsContainer.ArtistItem
-                oldItem.artist.uri == newArtist?.artist?.uri
+                oldItem.artist.id == newArtist?.artist?.id
             }
             is MediaItemsContainer.PlaylistItem -> {
                 val newPlaylist = newItem as? MediaItemsContainer.PlaylistItem
-                oldItem.playlist.uri == newPlaylist?.playlist?.uri
+                oldItem.playlist.id == newPlaylist?.playlist?.id
             }
         }
     }

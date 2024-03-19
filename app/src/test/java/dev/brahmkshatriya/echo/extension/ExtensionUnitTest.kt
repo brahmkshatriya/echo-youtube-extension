@@ -8,14 +8,37 @@ import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Track
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 
+@OptIn(DelicateCoroutinesApi::class)
+@ExperimentalCoroutinesApi
 class ExtensionUnitTest {
-    private val extension: Any = TestExtension()
+    private val extension: Any = YoutubeExtension()
     private val searchQuery = "Skrillex"
+
+    private val mainThreadSurrogate = newSingleThreadContext("UI thread")
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(mainThreadSurrogate)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain() // reset the main dispatcher to the original Main dispatcher
+        mainThreadSurrogate.close()
+    }
 
     private fun testIn(title: String, block: suspend () -> Unit) = runBlocking {
         println("\n-- $title --")
@@ -41,6 +64,7 @@ class ExtensionUnitTest {
         if (extension !is HomeFeedClient)
             error("HomeFeedClient is not implemented")
         val genre = MutableStateFlow<String?>(null)
+
         val feed = extension.getHomeFeed(genre).first()
         differ.submitData(feed)
         differ.snapshot().items.forEach {
@@ -101,20 +125,10 @@ class ExtensionUnitTest {
     }
 
     @Test
-    fun testTrackStream() = testIn("Testing Track Stream") {
-        if (extension !is TrackClient)
-            error("HomeFeedClient is not implemented")
-        val track = searchTrack()
-        println(track)
-        val stream = extension.getStreamable(track)
-        println(stream)
-    }
-
-    @Test
     fun testTrackGet() = testIn("Testing Track Get") {
         if (extension !is TrackClient)
             error("HomeFeedClient is not implemented")
-        val track = extension.getTrack(searchTrack().uri)
+        val track = extension.getTrack(searchTrack().id)
         println(track)
     }
 

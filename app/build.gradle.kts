@@ -8,8 +8,8 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        val extensionName = "Test"
-        val extensionClass = "TestExtension"
+        val extensionName = "Youtube"
+        val extensionClass = "YoutubeExtension"
 
         applicationId = "dev.brahmkshatriya.echo.extension"
         minSdk = 24
@@ -25,7 +25,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -39,14 +39,21 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    @Suppress("UnstableApiUsage")
+    testOptions {
+        unitTests {
+            this.isReturnDefaultValues = true
+        }
+    }
 }
 
-
-
 dependencies {
-    compileOnly("com.github.brahmkshatriya:echo:e10aee68de")
+    compileOnly("com.github.brahmkshatriya:echo:2ee56d0d7b")
+    implementation("dev.toastbits.ytm-kt:library-jvm:v0.1.0")
 
     testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")
     testImplementation("junit:junit:4.13.2")
-    testImplementation("com.github.brahmkshatriya:echo:e10aee68de")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1-Beta")
+    testImplementation("com.github.brahmkshatriya:echo:2ee56d0d7b")
 }
