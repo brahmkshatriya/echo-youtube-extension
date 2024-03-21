@@ -49,11 +49,11 @@ android {
 }
 
 dependencies {
-    compileOnly("com.github.brahmkshatriya:echo:2ee56d0d7b")
-    implementation("dev.toastbits.ytm-kt:library-jvm:v0.1.0")
+    compileOnly("com.github.brahmkshatriya:echo:bd639a41cc")
+    implementation("dev.toastbits.ytm-kt:library-jvm:cb25bf3")
 
     testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1-Beta")
-    testImplementation("com.github.brahmkshatriya:echo:2ee56d0d7b")
+    testImplementation("com.github.brahmkshatriya:echo:bd639a41cc")
 }

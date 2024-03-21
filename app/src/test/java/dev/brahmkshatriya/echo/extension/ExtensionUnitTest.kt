@@ -6,6 +6,7 @@ import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
+import dev.brahmkshatriya.echo.common.models.Genre
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Track
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -63,10 +64,12 @@ class ExtensionUnitTest {
     fun testHomeFeed() = testIn("Testing Home Feed") {
         if (extension !is HomeFeedClient)
             error("HomeFeedClient is not implemented")
-        val genre = MutableStateFlow<String?>(null)
+        val genre = MutableStateFlow<Genre?>(null)
 
-        val feed = extension.getHomeFeed(genre).first()
-        differ.submitData(feed)
+        extension.getHomeFeed(genre).collect {
+            println("Received Data from source")
+            differ.submitData(it)
+        }
         differ.snapshot().items.forEach {
             println(it)
         }

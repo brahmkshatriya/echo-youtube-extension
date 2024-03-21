@@ -1,0 +1,52 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: 17
+          cache: 'gradle'
+
+      - name: Cook KeyStore
+        run:  echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew assembleDebug
+          -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/signing-key.jks
+          -Pandroid.injected.signing.store.password=${{ secrets.PASSWORD }}
+          -Pandroid.injected.signing.key.alias=key0
+          -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK to Discord
+        shell: bash
+        env:
+          VERSION: ${{ github.event.head_commit.id }}
+          CONTENT: ${{ github.event.head_commit.message }}
+          ROLE: ${{ secrets.DISCORD_PING_ROLE_ID }}
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          content=$( jq -Rsa . <<< "${{ env.CONTENT }}" )
+          version=$( echo ${{ env.VERSION }} | cut -c1-7 )
+          mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/yt-${version}.apk
+          curl -F "payload_json={\"content\":\"<@&${{ env.ROLE }}> Youtube Extension : **${version}**\n${content:1:-1}\"}" -F "echo_beta=@app/build/outputs/apk/debug/yt-${version}.apk" ${{ env.WEBHOOK }}
