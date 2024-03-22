@@ -51,6 +51,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override val settings: List<Setting> = listOf()
 
     private val api = YoutubeiApi()
+    private var initialized = false
 
     private val english = "en-GB"
     private val singles = "Singles"
@@ -61,7 +62,11 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private var oldGenre: Genre? = null
     private var feed: SongFeedLoadResult? = null
     override suspend fun getHomeGenres(): List<Genre> {
-        api.getNewVisitorId()
+        if(!initialized) {
+            api.getNewVisitorId()
+            initialized = true
+        }
+
         val result = api.SongFeed.getSongFeed().getOrThrow()
         feed = result
         val genres = result.filter_chips?.map {
