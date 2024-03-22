@@ -50,7 +50,7 @@ android {
 
 dependencies {
     compileOnly("com.github.brahmkshatriya:echo:bd639a41cc")
-    implementation("dev.toastbits.ytm-kt:library-jvm:cb25bf3")
+    implementation("com.github.toasterofbread.ytm-kt:library:8228d55c49")
 
     testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")
     testImplementation("junit:junit:4.13.2")
