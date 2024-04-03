@@ -49,7 +49,7 @@ android {
 }
 
 dependencies {
-    compileOnly("com.github.brahmkshatriya:echo:bd639a41cc")
+    compileOnly("com.github.brahmkshatriya:echo:186dcebb6e")
     implementation("com.github.toasterofbread.ytm-kt:library:8228d55c49")
 
     testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")

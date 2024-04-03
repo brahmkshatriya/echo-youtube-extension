@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
@@ -66,10 +67,8 @@ class ExtensionUnitTest {
             error("HomeFeedClient is not implemented")
         val genre = MutableStateFlow<Genre?>(null)
 
-        extension.getHomeFeed(genre).collect {
-            println("Received Data from source")
-            differ.submitData(it)
-        }
+        val feed = extension.getHomeFeed(genre).firstOrNull()
+        feed?.let { differ.submitData(it) }
         differ.snapshot().items.forEach {
             println(it)
         }
@@ -90,10 +89,10 @@ class ExtensionUnitTest {
     }
 
     @Test
-    fun testEmptySearch() = testIn("Testing Quick Search") {
+    fun testEmptySearch() = testIn("Testing Empty Search") {
         if (extension !is SearchClient)
             error("SearchClient is not implemented")
-        val search = extension.search(searchQuery).first()
+        val search = extension.search(" ").first()
         differ.submitData(search)
         differ.snapshot().items.forEach {
             println(it)
@@ -115,10 +114,11 @@ class ExtensionUnitTest {
         if (extension !is SearchClient)
             error("SearchClient is not implemented")
         val search = extension.search(searchQuery).first()
-        val items = differ.snapshot().items
         differ.submitData(search)
+        val items = differ.snapshot().items
         var track = items.filterIsInstance<MediaItemsContainer.TrackItem>()
             .firstOrNull()?.track
+
         if (track == null) {
             track = items.filterIsInstance<MediaItemsContainer.Category>().map {
                 it.list.filterIsInstance<EchoMediaItem.TrackItem>()

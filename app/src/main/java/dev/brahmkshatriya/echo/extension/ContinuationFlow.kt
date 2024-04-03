@@ -1,25 +1,21 @@
 package dev.brahmkshatriya.echo.extension
 
-import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingState
 import dev.brahmkshatriya.echo.common.helpers.ErrorPagingSource
+import dev.brahmkshatriya.echo.common.helpers.PagedData
 
-data class Page<T : Any, C : Any>(
+data class Page<T : Any>(
     val data: List<T>,
-    val continuation: C?
+    val continuation: String?
 )
 
-class ContinuationSource<T : Any, C : Any>(
-    private val load: suspend (token: C?) -> Page<T, C>
-) : ErrorPagingSource<C, T>() {
-    override fun getRefreshKey(state: PagingState<C, T>): C? {
-        return state.anchorPosition?.let { anchorPosition ->
-            state.closestPageToPosition(anchorPosition)?.nextKey
-        }
-    }
+class ContinuationSource<C : Any>(
+    private val load: suspend (token: String?) -> Page<C>,
+) : ErrorPagingSource<String, C>() {
 
-    override suspend fun loadData(params: LoadParams<C>): LoadResult.Page<C, T> {
+    override val config = PagingConfig(pageSize = 10, enablePlaceholders = false)
+    override suspend fun loadData(params: LoadParams<String>): LoadResult.Page<String, C> {
         val token = params.key
         val page = load(token)
         return LoadResult.Page(
@@ -28,9 +24,13 @@ class ContinuationSource<T : Any, C : Any>(
             nextKey = page.continuation
         )
     }
+
+    override fun getRefreshKey(state: PagingState<String, C>): String? {
+        return state.anchorPosition?.let { anchorPosition ->
+            state.closestPageToPosition(anchorPosition)?.nextKey
+        }
+    }
 }
 
-fun <T : Any> continuationFlow(load: suspend (token: String?) -> Page<T, String>) = Pager(
-    config = PagingConfig(pageSize = 10, enablePlaceholders = false),
-    pagingSourceFactory = { ContinuationSource(load) }
-).flow
+fun <T : Any> continuationFlow(load: suspend (token: String?) ->Page<T>) =
+    PagedData.Source(ContinuationSource(load))

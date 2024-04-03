@@ -1,6 +1,5 @@
 package dev.brahmkshatriya.echo.extension
 
-import androidx.paging.PagingData
 import dev.brahmkshatriya.echo.common.clients.AlbumClient
 import dev.brahmkshatriya.echo.common.clients.ArtistClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
@@ -9,6 +8,7 @@ import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
+import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
@@ -33,10 +33,6 @@ import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmMediaItem
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.flow
 
 class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchClient, RadioClient,
     AlbumClient, ArtistClient, PlaylistClient {
@@ -46,7 +42,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         version = "1.0.0",
         description = "Youtube Music Extension for Echo, with the help of YTM-kt library.",
         author = "Echo",
-        iconUrl = null
+        iconUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Youtube_Music_icon.svg/128px-Youtube_Music_icon.svg.png".toImageHolder()
     )
     override val settings: List<Setting> = listOf()
 
@@ -62,7 +58,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private var oldGenre: Genre? = null
     private var feed: SongFeedLoadResult? = null
     override suspend fun getHomeGenres(): List<Genre> {
-        if(!initialized) {
+        if (!initialized) {
             api.getNewVisitorId()
             initialized = true
         }
@@ -75,23 +71,26 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         return listOf(listOf(Genre("null", "All")), genres).flatten()
     }
 
-    override suspend fun getHomeFeed(genre: StateFlow<Genre?>) =
-        continuationFlow {
-            val params = genre.value?.id?.takeIf { id -> id != "null" }
-            val continuation = if (oldGenre == genre.value) it else null
-            val result = feed?.also {
-                feed = null
-            } ?: api.SongFeed.getSongFeed(
-                params = params,
-                continuation = continuation
-            ).getOrThrow()
+    override fun getHomeFeed(genre: Genre?) = continuationFlow {
+        val params = genre?.id?.takeIf { id -> id != "null" }
+        val continuation = if (oldGenre == genre) it else null
+        val result = feed?.also {
+            feed = null
+        } ?: api.SongFeed.getSongFeed(
+            params = params,
+            continuation = continuation
+        ).getOrThrow()
 
-            val data = result.layouts.map { itemLayout ->
-                itemLayout.toMediaItemsContainer()
-            }
-            oldGenre = genre.value
-            Page(data, result.ctoken)
+        val data = result.layouts.map { itemLayout ->
+            itemLayout.toMediaItemsContainer()
         }
+        oldGenre = genre
+        Page(data, result.ctoken)
+    }
+
+    override fun getMediaItems(track: Track): PagedData<MediaItemsContainer> {
+        TODO("Not yet implemented")
+    }
 
     override suspend fun getStreamableAudio(streamable: Streamable): StreamableAudio {
         val id = streamable.id
@@ -102,23 +101,27 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
             }?.url?.toAudio() ?: throw Exception("No audio found")
     }
 
-    override suspend fun getTrack(id: String): Track {
-        val song = api.LoadSong.loadSong(id).getOrThrow()
+    override suspend fun loadTrack(track: Track): Track {
+        val song = api.LoadSong.loadSong(track.id).getOrThrow()
         return song.toTrack()
     }
 
-    override suspend fun quickSearch(query: String): List<QuickSearchItem> =
-        api.SearchSuggestions.getSearchSuggestions(query)
-            .getOrThrow()
-            .map { QuickSearchItem.SearchQueryItem(it.text) }
+    override suspend fun quickSearch(query: String?) = query?.run {
+        api.SearchSuggestions.getSearchSuggestions(this).getOrThrow()
+            .map { QuickSearchItem.SearchQueryItem(it.text, it.is_from_history) }
+    } ?: listOf()
 
-    override suspend fun search(query: String): Flow<PagingData<MediaItemsContainer>> {
-        val search = api.Search.searchMusic(query, null).getOrThrow()
+
+    override fun search(query: String?, genre: Genre?) = PagedData.Single {
+        val search = api.Search.searchMusic(query ?: "", null).getOrThrow()
         val list = search.categories.map { (itemLayout, _) ->
             itemLayout.toMediaItemsContainer()
         }
-        return flow { emit(PagingData.from(list)) }
+        list
     }
+
+    override suspend fun searchGenres(query: String?): List<Genre> = listOf()
+
 
     private fun MediaItemLayout.toMediaItemsContainer(): MediaItemsContainer {
         val s = title?.getString(english)
@@ -129,7 +132,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
             list = items.mapNotNull { item ->
                 item.toEchoMediaItem(single)
             },
-            flow = continuationFlow { _ ->
+            more = continuationFlow { _ ->
                 val id = view_more?.getBrowseParamsData()?.browse_id
                 val rows =
                     id?.let {
@@ -146,15 +149,12 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private fun YtmMediaItem.toEchoMediaItem(single: Boolean): EchoMediaItem? {
         return when (this) {
             is YtmSong -> EchoMediaItem.TrackItem(toTrack())
-            is YtmPlaylist -> {
-                when (type) {
-                    YtmPlaylist.Type.ALBUM -> EchoMediaItem.AlbumItem(toAlbum(single))
-                    else -> EchoMediaItem.PlaylistItem(toPlaylist())
-                }
-
+            is YtmPlaylist -> when (type) {
+                YtmPlaylist.Type.ALBUM -> EchoMediaItem.Lists.AlbumItem(toAlbum(single))
+                else -> EchoMediaItem.Lists.PlaylistItem(toPlaylist())
             }
 
-            is YtmArtist -> EchoMediaItem.ArtistItem(toArtist())
+            is YtmArtist -> EchoMediaItem.Profile.ArtistItem(toArtist())
             else -> null
         }
     }
@@ -286,52 +286,54 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         return radio(track)
     }
 
-    override suspend fun getMediaItems(album: Album) = flow {
-        val result = album.artists.mapNotNull {
+    override fun getMediaItems(album: Album): PagedData<MediaItemsContainer> = PagedData.Single {
+        album.artists.mapNotNull {
             val artist = try {
                 loadArtist(it)
             } catch (e: Throwable) {
                 null
             }
             if (artist != null) {
-                getMediaItems(artist).firstOrNull()
+                getArtistMediaItems(artist)
             } else null
-        }
-        result.onEach { emit(it) }
+        }.flatten()
     }
 
     override suspend fun loadAlbum(small: Album): Album {
         return api.LoadPlaylist.loadPlaylist(small.id).getOrThrow().toAlbum()
     }
 
-    override suspend fun getMediaItems(artist: Artist): Flow<PagingData<MediaItemsContainer>> {
-        return flow {
-            val result = api.LoadArtist.loadArtist(artist.id).getOrThrow()
-            val list = result.layouts?.map {
-                val title = it.title?.getString(english)
-                val single = title == singles
-                MediaItemsContainer.Category(
-                    title = it.title?.getString(language) ?: "Unknown",
-                    subtitle = it.subtitle?.getString(language),
-                    list = it.items?.mapNotNull { item ->
-                        item.toEchoMediaItem(single)
-                    } ?: emptyList(),
-                    flow = continuationFlow { _ ->
-                        val param = it.view_more?.getBrowseParamsData()
-                        val rows =
-                            param?.let { it1 ->
-                                api.ArtistWithParams.loadArtistWithParams(it1).getOrThrow()
-                            }
-                        val data = rows?.map { itemLayout ->
-                            itemLayout.toMediaItems()
-                        }?.flatten() ?: emptyList()
-                        Page(data, null)
-                    }
-                )
-            } ?: emptyList()
-            emit(PagingData.from(list))
-        }
+    private suspend fun getArtistMediaItems(artist: Artist): List<MediaItemsContainer.Category> {
+        val result = api.LoadArtist.loadArtist(artist.id).getOrThrow()
+        val list = result.layouts?.map {
+            val title = it.title?.getString(english)
+            val single = title == singles
+            MediaItemsContainer.Category(
+                title = it.title?.getString(language) ?: "Unknown",
+                subtitle = it.subtitle?.getString(language),
+                list = it.items?.mapNotNull { item ->
+                    item.toEchoMediaItem(single)
+                } ?: emptyList(),
+                more = continuationFlow { _ ->
+                    val param = it.view_more?.getBrowseParamsData()
+                    val rows =
+                        param?.let { it1 ->
+                            api.ArtistWithParams.loadArtistWithParams(it1).getOrThrow()
+                        }
+                    val data = rows?.map { itemLayout ->
+                        itemLayout.toMediaItems()
+                    }?.flatten() ?: emptyList()
+                    Page(data, null)
+                }
+            )
+        } ?: emptyList()
+        return list
     }
+
+    override fun getMediaItems(artist: Artist): PagedData<MediaItemsContainer> = PagedData.Single {
+        getArtistMediaItems(artist)
+    }
+
 
     override suspend fun loadArtist(small: Artist): Artist {
         val result = api.LoadArtist.loadArtist(small.id).getOrThrow()
@@ -346,7 +348,8 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     private fun getCover(id: String): ImageHolder.UrlHolder {
-        return SongThumbnailProvider(id).getThumbnailUrl(thumbnailQuality).toImageHolder(crop = true)
+        return SongThumbnailProvider(id).getThumbnailUrl(thumbnailQuality)
+            .toImageHolder(crop = true)
     }
 
     private data class SongThumbnailProvider(val id: String) : ThumbnailProvider {
@@ -358,11 +361,10 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
 
-    override suspend fun getMediaItems(playlist: Playlist): Flow<PagingData<MediaItemsContainer>> {
-        return continuationFlow {
+    override fun getMediaItems(playlist: Playlist): PagedData<MediaItemsContainer> =
+        continuationFlow {
             TODO("Will add tomorrow")
         }
-    }
 
     override suspend fun loadPlaylist(playlist: Playlist): Playlist {
         return api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow().toPlaylist()
