@@ -107,21 +107,46 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     override suspend fun quickSearch(query: String?) = query?.run {
-        api.SearchSuggestions.getSearchSuggestions(this).getOrThrow()
-            .map { QuickSearchItem.SearchQueryItem(it.text, it.is_from_history) }
+        try {
+            api.SearchSuggestions.getSearchSuggestions(this).getOrThrow()
+                .map { QuickSearchItem.SearchQueryItem(it.text, it.is_from_history) }
+        } catch (e: NullPointerException) {
+            null
+        }
     } ?: listOf()
 
 
+    private var oldSearch: Pair<String, List<MediaItemsContainer>>? = null
     override fun search(query: String?, genre: Genre?) = PagedData.Single {
-        val search = api.Search.searchMusic(query ?: "", null).getOrThrow()
+        query ?: return@Single emptyList()
+        val old = oldSearch?.takeIf {
+            it.first == query && (genre == null || genre.id == "ALL")
+        }?.second
+        if (old != null) return@Single old
+        val search = api.Search.searchMusic(query, genre?.id).getOrThrow()
         val list = search.categories.map { (itemLayout, _) ->
-            itemLayout.toMediaItemsContainer()
-        }
+            itemLayout.items.mapNotNull { item ->
+                item.toEchoMediaItem(false)?.toMediaItemsContainer()
+            }
+        }.flatten()
         list
     }
 
-    override suspend fun searchGenres(query: String?): List<Genre> = listOf()
-
+    override suspend fun searchGenres(query: String?): List<Genre> {
+        query ?: return emptyList()
+        val search = api.Search.searchMusic(query, null).getOrThrow()
+        oldSearch = query to search.categories.map { (itemLayout, _) ->
+            itemLayout.toMediaItemsContainer()
+        }
+        val genres = search.categories.mapNotNull { (_, filter) ->
+            filter?.let {
+                Genre(
+                    it.params,
+                    it.type.name.lowercase().replaceFirstChar { char -> char.uppercase() })
+            }
+        }
+        return listOf(Genre("ALL", "ALL")) + genres
+    }
 
     private fun MediaItemLayout.toMediaItemsContainer(): MediaItemsContainer {
         val s = title?.getString(english)

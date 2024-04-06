@@ -1,20 +1,23 @@
 package dev.brahmkshatriya.echo.extension
 
 import androidx.paging.AsyncPagingDataDiffer
+import androidx.paging.LoadState
+import androidx.paging.PagingData
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
-import dev.brahmkshatriya.echo.common.models.Genre
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Track
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
@@ -42,16 +45,15 @@ class ExtensionUnitTest {
         mainThreadSurrogate.close()
     }
 
-    private fun testIn(title: String, block: suspend () -> Unit) = runBlocking {
+    private fun testIn(title: String, block: suspend CoroutineScope.() -> Unit) = runBlocking {
         println("\n-- $title --")
-        block.invoke()
+        block.invoke(this)
         println("\n")
     }
 
     @Test
     fun testMetadata() = testIn("Testing Extension Metadata") {
-        if (extension !is ExtensionClient)
-            error("ExtensionClient is not implemented")
+        if (extension !is ExtensionClient) error("ExtensionClient is not implemented")
         val metadata = extension.metadata
         println(metadata)
     }
@@ -61,49 +63,83 @@ class ExtensionUnitTest {
         ListCallback(),
     )
 
+    private suspend fun <T : Any> Flow<PagingData<T>>.getItems(
+        differ: AsyncPagingDataDiffer<T>
+    ) = coroutineScope {
+        val job = launch { collect { differ.submitData(it) } }
+        val refresh = differ.loadStateFlow
+            .first { it.refresh is LoadState.NotLoading }
+            .refresh
+        job.cancel()
+        if (refresh is LoadState.Error) throw refresh.error
+        differ.snapshot().items
+    }
+
     @Test
     fun testHomeFeed() = testIn("Testing Home Feed") {
-        if (extension !is HomeFeedClient)
-            error("HomeFeedClient is not implemented")
-        val genre = MutableStateFlow<Genre?>(null)
-
-        val feed = extension.getHomeFeed(genre).firstOrNull()
-        feed?.let { differ.submitData(it) }
-        differ.snapshot().items.forEach {
+        if (extension !is HomeFeedClient) error("HomeFeedClient is not implemented")
+        val feed = extension.getHomeFeed(null).getItems(differ)
+        feed.forEach {
             println(it)
         }
     }
 
     @Test
     fun testHomeFeedWithGenre() = testIn("Testing Home Feed with Genre") {
-        if (extension !is HomeFeedClient)
-            error("HomeFeedClient is not implemented")
-        val genre = MutableStateFlow(
-            extension.getHomeGenres().firstOrNull()
-        )
-        val feed = extension.getHomeFeed(genre).first()
-        differ.submitData(feed)
-        differ.snapshot().items.forEach {
+        if (extension !is HomeFeedClient) error("HomeFeedClient is not implemented")
+        val genre = extension.getHomeGenres().firstOrNull()
+        val feed = extension.getHomeFeed(genre).getItems(differ)
+        feed.forEach {
             println(it)
         }
     }
 
     @Test
-    fun testEmptySearch() = testIn("Testing Empty Search") {
-        if (extension !is SearchClient)
-            error("SearchClient is not implemented")
-        val search = extension.search(" ").first()
-        differ.submitData(search)
-        differ.snapshot().items.forEach {
+    fun testNullQuickSearch() = testIn("Testing Null Quick Search") {
+        if (extension !is SearchClient) error("SearchClient is not implemented")
+        val search = extension.quickSearch(null)
+        search.forEach {
+            println(it)
+        }
+    }
+
+    @Test
+    fun testQuickSearch() = testIn("Testing Quick Search") {
+        if (extension !is SearchClient) error("SearchClient is not implemented")
+        val search = extension.quickSearch(searchQuery)
+        search.forEach {
+            println(it)
+        }
+    }
+
+    @Test
+    fun testNullSearch() = testIn("Testing Null Search") {
+        if (extension !is SearchClient) error("SearchClient is not implemented")
+        val search = extension.search(null, null).getItems(differ)
+        search.forEach {
             println(it)
         }
     }
 
     @Test
     fun testSearch() = testIn("Testing Search") {
-        if (extension !is SearchClient)
-            error("SearchClient is not implemented")
-        val search = extension.quickSearch(searchQuery)
+        if (extension !is SearchClient) error("SearchClient is not implemented")
+        println("Genres")
+        extension.searchGenres(searchQuery).forEach {
+            println(it)
+        }
+        println("Search Results")
+        val search = extension.search(searchQuery, null).getItems(differ)
+        search.forEach {
+            println(it)
+        }
+    }
+
+    @Test
+    fun testSearchWithGenre() = testIn("Testing Search with Genre") {
+        if (extension !is SearchClient) error("SearchClient is not implemented")
+        val genre = extension.searchGenres(searchQuery).firstOrNull()
+        val search = extension.search(searchQuery, genre).getItems(differ)
         search.forEach {
             println(it)
         }
@@ -111,13 +147,10 @@ class ExtensionUnitTest {
 
 
     private suspend fun searchTrack(): Track {
-        if (extension !is SearchClient)
-            error("SearchClient is not implemented")
-        val search = extension.search(searchQuery).first()
-        differ.submitData(search)
-        val items = differ.snapshot().items
-        var track = items.filterIsInstance<MediaItemsContainer.TrackItem>()
-            .firstOrNull()?.track
+        if (extension !is SearchClient) error("SearchClient is not implemented")
+        val items = extension.search(searchQuery, null).getItems(differ)
+        var track = (items.filterIsInstance<MediaItemsContainer.Item>()
+            .firstOrNull()?.media as? EchoMediaItem.TrackItem?)?.track
 
         if (track == null) {
             track = items.filterIsInstance<MediaItemsContainer.Category>().map {
@@ -129,9 +162,8 @@ class ExtensionUnitTest {
 
     @Test
     fun testTrackGet() = testIn("Testing Track Get") {
-        if (extension !is TrackClient)
-            error("HomeFeedClient is not implemented")
-        val track = extension.getTrack(searchTrack().id)
+        if (extension !is TrackClient) error("TrackClient is not implemented")
+        val track = extension.loadTrack(searchTrack())
         println(track)
     }
 

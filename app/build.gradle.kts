@@ -55,5 +55,5 @@ dependencies {
     testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1-Beta")
-    testImplementation("com.github.brahmkshatriya:echo:bd639a41cc")
+    testImplementation("com.github.brahmkshatriya:echo:186dcebb6e")
 }
