@@ -120,7 +120,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override fun search(query: String?, genre: Genre?) = PagedData.Single {
         query ?: return@Single emptyList()
         val old = oldSearch?.takeIf {
-            it.first == query && (genre == null || genre.id == "ALL")
+            it.first == query && (genre == null || genre.id == "All")
         }?.second
         if (old != null) return@Single old
         val search = api.Search.searchMusic(query, genre?.id).getOrThrow()
@@ -145,7 +145,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
                     it.type.name.lowercase().replaceFirstChar { char -> char.uppercase() })
             }
         }
-        return listOf(Genre("ALL", "ALL")) + genres
+        return listOf(Genre("All", "All")) + genres
     }
 
     private fun MediaItemLayout.toMediaItemsContainer(): MediaItemsContainer {
