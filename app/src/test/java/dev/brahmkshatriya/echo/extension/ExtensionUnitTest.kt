@@ -3,12 +3,16 @@ package dev.brahmkshatriya.echo.extension
 import androidx.paging.AsyncPagingDataDiffer
 import androidx.paging.LoadState
 import androidx.paging.PagingData
+import dev.brahmkshatriya.echo.common.clients.AlbumClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
+import dev.brahmkshatriya.echo.common.clients.PlaylistClient
+import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
+import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.Track
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -126,7 +130,7 @@ class ExtensionUnitTest {
         if (extension !is SearchClient) error("SearchClient is not implemented")
         println("Genres")
         extension.searchGenres(searchQuery).forEach {
-            println(it)
+            println(it.name)
         }
         println("Search Results")
         val search = extension.search(searchQuery, null).getItems(differ)
@@ -148,14 +152,15 @@ class ExtensionUnitTest {
 
     private suspend fun searchTrack(): Track {
         if (extension !is SearchClient) error("SearchClient is not implemented")
+        println("Searching  : $searchQuery")
         val items = extension.search(searchQuery, null).getItems(differ)
-        var track = (items.filterIsInstance<MediaItemsContainer.Item>()
-            .firstOrNull()?.media as? EchoMediaItem.TrackItem?)?.track
-
-        if (track == null) {
-            track = items.filterIsInstance<MediaItemsContainer.Category>().map {
-                it.list.filterIsInstance<EchoMediaItem.TrackItem>()
-            }.flatten().firstOrNull()?.track
+        val track = items.firstNotNullOfOrNull {
+            val item = when (it) {
+                is MediaItemsContainer.Item -> it.media
+                is MediaItemsContainer.Category -> it.list.firstOrNull()
+                else -> null
+            }
+            (item as? EchoMediaItem.TrackItem)?.track
         }
         return track ?: error("Track not found, try a different search query")
     }
@@ -167,4 +172,53 @@ class ExtensionUnitTest {
         println(track)
     }
 
+    @Test
+    fun testTrackStream() = testIn("Testing Track Stream") {
+        if (extension !is TrackClient) error("TrackClient is not implemented")
+        val track = extension.loadTrack(searchTrack())
+        val streamable = track.streamable ?: error("Track is not streamable")
+        val stream = extension.getStreamableAudio(streamable)
+        println(stream)
+    }
+
+    @Test
+    fun testTrackRadio() = testIn("Testing Track Radio") {
+        if (extension !is TrackClient) error("TrackClient is not implemented")
+        if (extension !is RadioClient) error("RadioClient is not implemented")
+        val track = extension.loadTrack(searchTrack())
+        val radio = extension.radio(track)
+        radio.tracks.forEach {
+            println(it)
+        }
+    }
+
+    @Test
+    fun testTrackMediaItems() = testIn("Testing Track Media Items") {
+        if (extension !is TrackClient) error("TrackClient is not implemented")
+        val track = extension.loadTrack(Track("iDkSRTBDxJY",""))
+        val mediaItems = extension.getMediaItems(track).getItems(differ)
+        mediaItems.forEach {
+            println(it)
+        }
+    }
+
+    @Test
+    fun testAlbumGet() = testIn("Testing Album Get") {
+        if (extension !is TrackClient) error("TrackClient is not implemented")
+        val track = extension.loadTrack(searchTrack())
+        if(extension !is AlbumClient) error("AlbumClient is not implemented")
+        val album = extension.loadAlbum(track.album ?: error("Track has no album"))
+        println(album)
+    }
+
+    @Test
+    fun testPlaylistMediaItems() = testIn("Testing Playlist Media Items") {
+        if (extension !is PlaylistClient) error("PlaylistClient is not implemented")
+        val playlist = extension.loadPlaylist(Playlist("RDCLAK5uy_n38QBvlkETFzw_TX8Z7wfA733kKr2vo0o",""))
+        println(playlist)
+        val mediaItems = extension.getMediaItems(playlist).getItems(differ)
+        mediaItems.forEach {
+            println(it)
+        }
+    }
 }

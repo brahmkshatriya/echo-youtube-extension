@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    kotlin("plugin.serialization") version "1.9.22"
 }
 
 android {
@@ -50,7 +51,15 @@ android {
 
 dependencies {
     compileOnly("com.github.brahmkshatriya:echo:186dcebb6e")
-    implementation("com.github.toasterofbread.ytm-kt:library:8228d55c49")
+    implementation("com.github.toasterofbread.ytm-kt:library-jvm:ba4c927fc5")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    val ktorVersion = "2.3.9"
+    implementation("io.ktor:ktor-client-core:$ktorVersion")
+    implementation("io.ktor:ktor-client-cio:$ktorVersion")
+    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 
     testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")
     testImplementation("junit:junit:4.13.2")
