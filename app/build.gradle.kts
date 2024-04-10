@@ -9,10 +9,10 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        val extensionName = "Youtube"
+        val extensionName = "Youtube Music"
         val extensionClass = "YoutubeExtension"
 
-        applicationId = "dev.brahmkshatriya.echo.extension"
+        applicationId = "dev.brahmkshatriya.echo.extension.ytm"
         minSdk = 24
         targetSdk = 34
 
@@ -20,7 +20,7 @@ android {
         versionName = "1.0"
 
         resValue("string", "app_name", "Echo : $extensionName Extension")
-        resValue("string", "class_path", "$applicationId.$extensionClass")
+        resValue("string", "class_path", "$namespace.$extensionClass")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

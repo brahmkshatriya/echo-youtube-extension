@@ -40,8 +40,8 @@ import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
 class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchClient, RadioClient,
     AlbumClient, ArtistClient, PlaylistClient {
     override val metadata = ExtensionMetadata(
-        id = "youtube",
-        name = "Youtube",
+        id = "youtube-music",
+        name = "Youtube Music",
         version = "1.0.0",
         description = "Youtube Music Extension for Echo, with the help of YTM-kt library.",
         author = "Echo",
