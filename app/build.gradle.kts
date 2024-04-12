@@ -50,7 +50,7 @@ android {
 }
 
 dependencies {
-    compileOnly("com.github.brahmkshatriya:echo:186dcebb6e")
+    compileOnly("com.github.brahmkshatriya:echo:f36aa39aa9")
     implementation("com.github.toasterofbread.ytm-kt:library-jvm:ba4c927fc5")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
@@ -61,8 +61,8 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
 
-    testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1-Beta")
-    testImplementation("com.github.brahmkshatriya:echo:186dcebb6e")
+    testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")
+    testImplementation("com.github.brahmkshatriya:echo:f36aa39aa9")
 }

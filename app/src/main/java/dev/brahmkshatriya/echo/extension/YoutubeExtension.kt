@@ -4,6 +4,7 @@ import dev.brahmkshatriya.echo.common.clients.AlbumClient
 import dev.brahmkshatriya.echo.common.clients.ArtistClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
+import dev.brahmkshatriya.echo.common.clients.LoginClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
@@ -15,30 +16,30 @@ import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ExtensionMetadata
 import dev.brahmkshatriya.echo.common.models.Genre
-import dev.brahmkshatriya.echo.common.models.ImageHolder
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.QuickSearchItem
+import dev.brahmkshatriya.echo.common.models.Request
+import dev.brahmkshatriya.echo.common.models.Request.Companion.toRequest
 import dev.brahmkshatriya.echo.common.models.Streamable
-import dev.brahmkshatriya.echo.common.models.StreamableAudio
 import dev.brahmkshatriya.echo.common.models.StreamableAudio.Companion.toAudio
 import dev.brahmkshatriya.echo.common.models.Track
+import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.toastbits.ytmkt.endpoint.ArtistWithParamsRow
 import dev.toastbits.ytmkt.endpoint.SongFeedLoadResult
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
-import dev.toastbits.ytmkt.model.external.RelatedGroup
-import dev.toastbits.ytmkt.model.external.ThumbnailProvider
-import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.*
-import dev.toastbits.ytmkt.model.external.mediaitem.MediaItemLayout
-import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
-import dev.toastbits.ytmkt.model.external.mediaitem.YtmMediaItem
-import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
-import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
+import dev.toastbits.ytmkt.impl.youtubei.YoutubeiAuthenticationState
+import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.HIGH
+import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.LOW
+import io.ktor.http.headers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchClient, RadioClient,
-    AlbumClient, ArtistClient, PlaylistClient {
+    AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView {
     override val metadata = ExtensionMetadata(
         id = "youtube-music",
         name = "Youtube Music",
@@ -53,16 +54,21 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private val loadSongEndPoint = EchoLoadSongEndPoint(api)
     private val loadAlbumEndPoint = EchoLoadAlbumEndPoint(api)
     private val loadPlaylistSectionListEndpoint = EchoPlaylistSectionListEndpoint(api)
+
+    private val thumbnailQuality = LOW
+    private val language = english
+
+    companion object {
+        const val english = "en-GB"
+        const val singles = "Singles"
+    }
+
+
     private var initialized = false
     private var visitorId: String?
         get() = preferences.getString("visitor_id", null)
         set(value) = preferences.edit().putString("visitor_id", value).apply()
 
-    private val english = "en-GB"
-    private val singles = "Singles"
-
-    private val thumbnailQuality = LOW
-    private val language = english
 
     private var oldGenre: Genre? = null
     private var feed: SongFeedLoadResult? = null
@@ -93,30 +99,34 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         ).getOrThrow()
 
         val data = result.layouts.map { itemLayout ->
-            itemLayout.toMediaItemsContainer()
+            itemLayout.toMediaItemsContainer(api, singles, thumbnailQuality)
         }
         oldGenre = genre
         Page(data, result.ctoken)
     }
 
 
-    override suspend fun getStreamableAudio(streamable: Streamable): StreamableAudio {
-        val id = streamable.id
-        return api.VideoFormats.getVideoFormats(id).getOrNull()
-            ?.sortedBy { it.bitrate }
-            ?.find { format ->
-                (format.url != null) && format.mimeType.startsWith("audio/mp4")
-            }?.url?.toAudio() ?: throw Exception("No audio found")
-    }
+    override suspend fun getStreamableAudio(streamable: Streamable) = streamable.id.toAudio()
 
-    override suspend fun loadTrack(track: Track): Track {
-        val song = loadSongEndPoint.loadSong(track.id).getOrThrow()
-        return song.toTrack(HIGH)
+    override suspend fun loadTrack(track: Track) = coroutineScope {
+        val newTrack = async {
+            loadSongEndPoint.loadSong(track.id).getOrThrow()
+        }
+        val video = async {
+            api.VideoFormats.getVideoFormats(track.id).getOrThrow()
+        }
+        newTrack.await().toTrack(HIGH).copy(
+            streamables = video.await().mapNotNull {
+                val url = it.url ?: return@mapNotNull null
+                if(!it.mimeType.contains("audio")) return@mapNotNull null
+                Streamable(url, it.bitrate)
+            }
+        )
     }
 
     private suspend fun loadRelated(track: Track) =
         api.SongRelatedContent.getSongRelated(track.id).getOrThrow()
-            .mapNotNull { it.toMediaItemsContainer() }
+            .mapNotNull { it.toMediaItemsContainer(thumbnailQuality) }
 
 
     override fun getMediaItems(track: Track): PagedData<MediaItemsContainer> = PagedData.Single {
@@ -151,7 +161,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         val search = api.Search.searchMusic(query, genre?.id).getOrThrow()
         val list = search.categories.map { (itemLayout, _) ->
             itemLayout.items.mapNotNull { item ->
-                item.toEchoMediaItem(false)?.toMediaItemsContainer()
+                item.toEchoMediaItem(false, thumbnailQuality)?.toMediaItemsContainer()
             }
         }.flatten()
         list
@@ -161,7 +171,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         query ?: return emptyList()
         val search = api.Search.searchMusic(query, null).getOrThrow()
         oldSearch = query to search.categories.map { (itemLayout, _) ->
-            itemLayout.toMediaItemsContainer()
+            itemLayout.toMediaItemsContainer(api, singles, thumbnailQuality)
         }
         val genres = search.categories.mapNotNull { (item, filter) ->
             filter?.let {
@@ -174,113 +184,13 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         return listOf(Genre("All", "All")) + genres
     }
 
-    private fun MediaItemLayout.toMediaItemsContainer(): MediaItemsContainer {
-        val s = title?.getString(english)
-        val single = s == singles
-        return MediaItemsContainer.Category(
-            title = title?.getString(language) ?: "Unknown",
-            subtitle = subtitle?.getString(language),
-            list = items.mapNotNull { item ->
-                item.toEchoMediaItem(single)
-            },
-            more = view_more?.getBrowseParamsData()?.browse_id?.let { id ->
-                continuationFlow { _ ->
-                    val rows =
-                        api.GenericFeedViewMorePage.getGenericFeedViewMorePage(id).getOrThrow()
-                    val data = rows.mapNotNull { itemLayout ->
-                        itemLayout.toEchoMediaItem(false)
-                    }
-                    Page(data, null)
-                }
-            }
-        )
-    }
-
-    private fun YtmMediaItem.toEchoMediaItem(single: Boolean): EchoMediaItem? {
-        return when (this) {
-            is YtmSong -> EchoMediaItem.TrackItem(toTrack())
-            is YtmPlaylist -> when (type) {
-                YtmPlaylist.Type.ALBUM -> EchoMediaItem.Lists.AlbumItem(toAlbum(single))
-                else -> EchoMediaItem.Lists.PlaylistItem(toPlaylist())
-            }
-
-            is YtmArtist -> EchoMediaItem.Profile.ArtistItem(toArtist())
-            else -> null
-        }
-    }
-
-    private fun YtmPlaylist.toPlaylist(quality: ThumbnailProvider.Quality = thumbnailQuality): Playlist {
-        val extras = continuation?.token?.let { mapOf("cont" to it) } ?: emptyMap()
-        return Playlist(
-            id = id,
-            title = name ?: "Unknown",
-            cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
-            authors = artists?.map { it.toArtist() } ?: emptyList(),
-            tracks = items?.map { it.toTrack() } ?: emptyList(),
-            subtitle = description,
-            duration = total_duration,
-            creationDate = year?.toString(),
-            extras = extras,
-        )
-    }
-
-    private fun YtmSong.toTrack(quality: ThumbnailProvider.Quality = thumbnailQuality): Track {
-        val album = album?.toAlbum()
-        val extras = related_browse_id?.let { mapOf("relatedId" to it) }
-        return Track(
-            id = id,
-            title = name ?: "Unknown",
-            artists = artists?.map { it.toArtist() } ?: emptyList(),
-            streamable = Streamable(id),
-            cover = getCover(id, quality),
-            album = album,
-            duration = duration,
-            plays = null,
-            releaseDate = album?.releaseDate,
-            liked = false,
-            extras = extras ?: emptyMap(),
-        )
-    }
-
-    private fun YtmArtist.toArtist(
-        quality: ThumbnailProvider.Quality = thumbnailQuality,
-    ): Artist {
-        return Artist(
-            id = id,
-            name = name ?: "Unknown",
-            cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
-            description = description,
-            followers = subscriber_count,
-        )
-    }
-
-    private fun YtmPlaylist.toAlbum(
-        single: Boolean = false,
-        quality: ThumbnailProvider.Quality = thumbnailQuality
-    ): Album {
-        return Album(
-            id = id,
-            title = name ?: "Unknown",
-            cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
-            artists = artists?.map {
-                it.toArtist()
-            } ?: emptyList(),
-            numberOfTracks = item_count ?: if (single) 1 else null,
-            releaseDate = year?.toString(),
-            tracks = items?.map { it.toTrack() } ?: emptyList(),
-            publisher = null,
-            duration = total_duration,
-            description = description,
-            subtitle = null,
-        )
-    }
-
     override suspend fun radio(album: Album): Playlist {
-        val full = api.LoadPlaylist.loadPlaylist(album.id).getOrThrow().toAlbum()
+        val full = api.LoadPlaylist.loadPlaylist(album.id).getOrThrow()
+            .toAlbum(false, thumbnailQuality)
         val track = full.tracks.firstOrNull()?.id ?: throw Exception("No tracks found")
         val result = api.SongRadio.getSongRadio(track, null).getOrThrow()
         val tracks = result.items.map {
-            it.toTrack()
+            it.toTrack(thumbnailQuality)
         }
         return Playlist(
             id = result.continuation ?: album.id,
@@ -297,7 +207,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override suspend fun radio(artist: Artist): Playlist {
         val result = api.ArtistRadio.getArtistRadio(artist.id, null).getOrThrow()
         val tracks = result.items.map {
-            it.toTrack()
+            it.toTrack(thumbnailQuality)
         }
         return Playlist(
             id = result.continuation ?: artist.id,
@@ -315,7 +225,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override suspend fun radio(track: Track): Playlist {
         val result = api.SongRadio.getSongRadio(track.id, null).getOrThrow()
         val tracks = result.items.map {
-            it.toTrack()
+            it.toTrack(thumbnailQuality)
         }
         return Playlist(
             id = result.continuation ?: track.id,
@@ -330,7 +240,8 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     override suspend fun radio(playlist: Playlist): Playlist {
-        val full = api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow().toPlaylist()
+        val full = api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow()
+            .toPlaylist(thumbnailQuality)
         val track = full.tracks.lastOrNull() ?: throw Exception("No tracks")
         return radio(track)
     }
@@ -353,7 +264,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
                 title = it.title?.getString(language) ?: "Unknown",
                 subtitle = it.subtitle?.getString(language),
                 list = it.items?.mapNotNull { item ->
-                    item.toEchoMediaItem(single)
+                    item.toEchoMediaItem(single, thumbnailQuality)
                 } ?: emptyList(),
                 more = it.view_more?.getBrowseParamsData()?.let { param ->
                     continuationFlow {
@@ -383,43 +294,92 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
     private fun ArtistWithParamsRow.toMediaItems(): List<EchoMediaItem> {
         return items.mapNotNull { item ->
-            item.toEchoMediaItem(title == singles)
+            item.toEchoMediaItem(title == singles, thumbnailQuality)
         }
-    }
-
-    private fun getCover(
-        id: String,
-        quality: ThumbnailProvider.Quality
-    ): ImageHolder.UrlHolder {
-        return SongThumbnailProvider(id).getThumbnailUrl(quality).toImageHolder(crop = true)
-    }
-
-    private data class SongThumbnailProvider(val id: String) : ThumbnailProvider {
-        override fun getThumbnailUrl(quality: ThumbnailProvider.Quality): String =
-            when (quality) {
-                LOW -> "https://img.youtube.com/vi/$id/mqdefault.jpg"
-                HIGH -> "https://img.youtube.com/vi/$id/maxresdefault.jpg"
-            }
-    }
-
-    private fun RelatedGroup.toMediaItemsContainer(): MediaItemsContainer.Category? {
-        val items = items ?: return null
-        return MediaItemsContainer.Category(
-            title = title ?: "???",
-            subtitle = description,
-            list = items.mapNotNull { item ->
-                item.toEchoMediaItem(false)
-            }
-        )
     }
 
     override fun getMediaItems(playlist: Playlist) = PagedData.Single<MediaItemsContainer> {
         val cont = playlist.extras["cont"] ?: return@Single emptyList()
         val continuation = loadPlaylistSectionListEndpoint.loadFromPlaylist(cont).getOrThrow()
-        continuation.mapNotNull { it.toMediaItemsContainer() }
+        continuation.mapNotNull { it.toMediaItemsContainer(thumbnailQuality) }
     }
 
     override suspend fun loadPlaylist(playlist: Playlist): Playlist {
         return api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow().toPlaylist(HIGH)
     }
+
+    override val loginWebViewInitialUrl =
+        "https://accounts.google.com/v3/signin/identifier?dsh=S1527412391%3A1678373417598386&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den-GB%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F%253Fcbrd%253D1%26feature%3D__FEATURE__&hl=en-GB&ifkv=AWnogHfK4OXI8X1zVlVjzzjybvICXS4ojnbvzpE4Gn_Pfddw7fs3ERdfk-q3tRimJuoXjfofz6wuzg&ltmpl=music&passive=true&service=youtube&uilel=3&flowName=GlifWebSignIn&flowEntry=ServiceLogin"
+            .toRequest()
+
+    override val loginWebViewStopUrlRegex = "https://music\\.youtube\\.com/.*".toRegex()
+    override suspend fun onLoginWebviewStop(request: Request, cookie: String): List<User> {
+        if (!cookie.contains("SAPISID"))
+            throw Exception("Login Failed, could not load SAPISID")
+
+        val headersMap = mutableMapOf("cookie" to cookie).apply {
+            val currentTime = System.currentTimeMillis() / 1000
+            val id = cookie.split("SAPISID=")[1].split(";")[0]
+            val idHash =
+                sha1("$currentTime $id https://music.youtube.com")
+            set("authorization", "SAPISIDHASH ${currentTime}_${idHash}")
+        }
+//        val headers = headers {
+//            headersMap.forEach { (t, u) -> append(t, u) }
+//        }
+//        val response: HttpResponse = with(api) {
+//            client.request {
+//                endpointPath("account/account_menu")
+//                headers { appendAll(headers) }
+//                addUnauthenticatedApiHeaders()
+//                postWithBody()
+//            }
+//        }
+//        val channel = response.body<YoutubeAccountMenuResponse>().getAritst()
+//        val artist = channel?.toArtist(thumbnailQuality)
+//            ?: throw Exception("could not parse channel")
+//        val newCookies = response.headers.flattenEntries().mapNotNull { header ->
+//            if (header.first.lowercase() == "set-cookie") header.second
+//            else null
+//        }
+//        headersMap["cookie"] =
+//            replaceCookiesInString(EmptyContent.headers["Cookie"]!!, newCookies)
+        return listOf(User("", "Default", extras = headersMap))
+    }
+
+    override suspend fun onSetLoginUser(user: User) {
+        val headers = headers {
+            user.extras.forEach { (t, u) -> append(t, u) }
+        }
+        val authenticationState =
+            YoutubeiAuthenticationState(api, headers, user.id.ifEmpty { null })
+        api.user_auth_state = authenticationState
+    }
+
+    private fun replaceCookiesInString(baseCookies: String, newCookies: List<String>): String {
+        var cookieString: String = baseCookies
+
+        for (cookie in newCookies) {
+            val split: List<String> = cookie.split('=', limit = 2)
+
+            val name: String = split[0]
+            val newValue: String = split[1].split(';', limit = 2)[0]
+
+            val cookieStart: Int = cookieString.indexOf("$name=") + name.length + 1
+            if (cookieStart != -1) {
+                val cookieEnd: Int = cookieString.indexOf(';', cookieStart)
+                val end = if (cookieEnd != -1)
+                    cookieString.substring(cookieEnd, cookieString.length)
+                else ""
+                cookieString = (cookieString.substring(0, cookieStart) + newValue + end)
+            } else cookieString += "; $name=$newValue"
+        }
+
+        return cookieString
+    }
+
+    private fun sha1(str: String) =
+        MessageDigest.getInstance("SHA-1").digest(str.toByteArray())
+            .joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
+
 }

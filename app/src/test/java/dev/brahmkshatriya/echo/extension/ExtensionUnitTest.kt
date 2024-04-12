@@ -29,6 +29,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import kotlin.system.measureTimeMillis
 
 @OptIn(DelicateCoroutinesApi::class)
 @ExperimentalCoroutinesApi
@@ -175,10 +176,13 @@ class ExtensionUnitTest {
     @Test
     fun testTrackStream() = testIn("Testing Track Stream") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
-        val track = extension.loadTrack(searchTrack())
-        val streamable = track.streamable ?: error("Track is not streamable")
-        val stream = extension.getStreamableAudio(streamable)
-        println(stream)
+        val search = searchTrack()
+        measureTimeMillis {
+            val track = extension.loadTrack(search)
+            val streamable = track.streamables.firstOrNull() ?: error("Track is not streamable")
+            val stream = extension.getStreamableAudio(streamable)
+            println(stream)
+        }.also { println("time : $it") }
     }
 
     @Test
@@ -195,7 +199,7 @@ class ExtensionUnitTest {
     @Test
     fun testTrackMediaItems() = testIn("Testing Track Media Items") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
-        val track = extension.loadTrack(Track("iDkSRTBDxJY",""))
+        val track = extension.loadTrack(Track("iDkSRTBDxJY", ""))
         val mediaItems = extension.getMediaItems(track).getItems(differ)
         mediaItems.forEach {
             println(it)
@@ -206,7 +210,7 @@ class ExtensionUnitTest {
     fun testAlbumGet() = testIn("Testing Album Get") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
         val track = extension.loadTrack(searchTrack())
-        if(extension !is AlbumClient) error("AlbumClient is not implemented")
+        if (extension !is AlbumClient) error("AlbumClient is not implemented")
         val album = extension.loadAlbum(track.album ?: error("Track has no album"))
         println(album)
     }
@@ -214,7 +218,8 @@ class ExtensionUnitTest {
     @Test
     fun testPlaylistMediaItems() = testIn("Testing Playlist Media Items") {
         if (extension !is PlaylistClient) error("PlaylistClient is not implemented")
-        val playlist = extension.loadPlaylist(Playlist("RDCLAK5uy_n38QBvlkETFzw_TX8Z7wfA733kKr2vo0o",""))
+        val playlist =
+            extension.loadPlaylist(Playlist("RDCLAK5uy_n38QBvlkETFzw_TX8Z7wfA733kKr2vo0o", ""))
         println(playlist)
         val mediaItems = extension.getMediaItems(playlist).getItems(differ)
         mediaItems.forEach {
