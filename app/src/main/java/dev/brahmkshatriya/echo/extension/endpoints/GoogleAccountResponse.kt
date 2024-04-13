@@ -1,4 +1,4 @@
-package dev.brahmkshatriya.echo.extension
+package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
@@ -9,6 +9,7 @@ data class GoogleAccountResponse(
     val code: String,
     val data: Data
 ) {
+
     private fun getAccountList(): List<AccountItem> {
         return data.actions[0].getMultiPageMenuAction.menu.multiPageMenuRenderer.sections[0].accountSectionListRenderer.contents.map {
             it.accountItemSectionRenderer.contents.mapNotNull { content ->

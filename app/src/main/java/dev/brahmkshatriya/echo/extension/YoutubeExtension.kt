@@ -20,13 +20,15 @@ import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.QuickSearchItem
-import dev.brahmkshatriya.echo.common.models.Request
 import dev.brahmkshatriya.echo.common.models.Request.Companion.toRequest
 import dev.brahmkshatriya.echo.common.models.Streamable
 import dev.brahmkshatriya.echo.common.models.StreamableAudio.Companion.toAudio
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.settings.Setting
+import dev.brahmkshatriya.echo.extension.endpoints.EchoLoadAlbumEndPoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoLoadSongEndPoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistSectionListEndpoint
 import dev.toastbits.ytmkt.endpoint.ArtistWithParamsRow
 import dev.toastbits.ytmkt.endpoint.SongFeedLoadResult
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
@@ -37,12 +39,10 @@ import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.get
 import io.ktor.client.request.headers
 import io.ktor.client.request.request
-import io.ktor.client.statement.bodyAsText
 import io.ktor.http.headers
 import io.ktor.util.flattenEntries
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.serialization.json.Json
 import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchClient, RadioClient,
@@ -320,7 +320,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
             .toRequest()
 
     override val loginWebViewStopUrlRegex = "https://music\\.youtube\\.com/.*".toRegex()
-    override suspend fun onLoginWebviewStop(request: Request, cookie: String): List<User> {
+    override suspend fun onLoginWebviewStop(url: String, cookie: String): List<User> {
         if (!cookie.contains("SAPISID"))
             throw Exception("Login Failed, could not load SAPISID")
         val auth = run {
@@ -338,15 +338,11 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         val headers = headers {
             headersMap.forEach { (t, u) -> append(t, u) }
         }
-        val jsonParser = Json { ignoreUnknownKeys = true }
         return api.client.request("https://music.youtube.com/getAccountSwitcherEndpoint") {
             headers {
                 append("referer", "https://music.youtube.com/")
                 appendAll(headers)
             }
-        }.bodyAsText().let {
-            val trimmed = it.substringAfter(")]}'")
-            jsonParser.decodeFromString<GoogleAccountResponse>(trimmed)
         }.getArtists(cookie, auth)
     }
 
@@ -399,6 +395,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         }
 
         return cookieString
+
     }
 
     private fun sha1(str: String) =

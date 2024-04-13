@@ -11,6 +11,7 @@ import dev.brahmkshatriya.echo.common.models.Streamable
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.english
 import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.singles
+import dev.brahmkshatriya.echo.extension.endpoints.GoogleAccountResponse
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.model.external.RelatedGroup
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider
@@ -19,6 +20,9 @@ import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmMediaItem
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import kotlinx.serialization.json.Json
 
 fun MediaItemLayout.toMediaItemsContainer(
     api: YoutubeiApi,
@@ -156,3 +160,12 @@ fun RelatedGroup.toMediaItemsContainer(quality: ThumbnailProvider.Quality): Medi
         }
     )
 }
+
+private val jsonParser = Json { ignoreUnknownKeys = true }
+suspend fun HttpResponse.getArtists(
+    cookie: String,
+    auth: String
+) = bodyAsText().let {
+    val trimmed = it.substringAfter(")]}'")
+    jsonParser.decodeFromString<GoogleAccountResponse>(trimmed)
+}.getArtists(cookie, auth)

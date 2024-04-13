@@ -1,4 +1,6 @@
-package dev.brahmkshatriya.echo.extension
+@file:Suppress("unused", "SpellCheckingInspection")
+
+package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiRequestData
 import dev.toastbits.ytmkt.model.ApiEndpoint
@@ -537,7 +539,7 @@ data class SlotEntryTrigger(
 )
 
 @Serializable
-class DTrigger()
+class DTrigger
 
 @Serializable
 data class SlotExpirationTrigger(

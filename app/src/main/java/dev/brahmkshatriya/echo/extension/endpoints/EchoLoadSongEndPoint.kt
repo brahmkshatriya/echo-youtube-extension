@@ -1,6 +1,6 @@
 @file:Suppress("unused", "LocalVariableName")
 
-package dev.brahmkshatriya.echo.extension
+package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
