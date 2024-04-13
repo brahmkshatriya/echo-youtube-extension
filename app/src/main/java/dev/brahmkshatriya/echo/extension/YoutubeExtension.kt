@@ -33,9 +33,16 @@ import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiAuthenticationState
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.HIGH
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.LOW
+import io.ktor.client.plugins.expectSuccess
+import io.ktor.client.request.get
+import io.ktor.client.request.headers
+import io.ktor.client.request.request
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.headers
+import io.ktor.util.flattenEntries
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.serialization.json.Json
 import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchClient, RadioClient,
@@ -118,7 +125,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         newTrack.await().toTrack(HIGH).copy(
             streamables = video.await().mapNotNull {
                 val url = it.url ?: return@mapNotNull null
-                if(!it.mimeType.contains("audio")) return@mapNotNull null
+                if (!it.mimeType.contains("audio")) return@mapNotNull null
                 Streamable(url, it.bitrate)
             }
         )
@@ -316,40 +323,56 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override suspend fun onLoginWebviewStop(request: Request, cookie: String): List<User> {
         if (!cookie.contains("SAPISID"))
             throw Exception("Login Failed, could not load SAPISID")
-
-        val headersMap = mutableMapOf("cookie" to cookie).apply {
+        val auth = run {
             val currentTime = System.currentTimeMillis() / 1000
             val id = cookie.split("SAPISID=")[1].split(";")[0]
             val idHash =
                 sha1("$currentTime $id https://music.youtube.com")
-            set("authorization", "SAPISIDHASH ${currentTime}_${idHash}")
+            "SAPISIDHASH ${currentTime}_${idHash}"
         }
-//        val headers = headers {
-//            headersMap.forEach { (t, u) -> append(t, u) }
-//        }
-//        val response: HttpResponse = with(api) {
-//            client.request {
-//                endpointPath("account/account_menu")
-//                headers { appendAll(headers) }
-//                addUnauthenticatedApiHeaders()
-//                postWithBody()
-//            }
-//        }
-//        val channel = response.body<YoutubeAccountMenuResponse>().getAritst()
-//        val artist = channel?.toArtist(thumbnailQuality)
-//            ?: throw Exception("could not parse channel")
-//        val newCookies = response.headers.flattenEntries().mapNotNull { header ->
-//            if (header.first.lowercase() == "set-cookie") header.second
-//            else null
-//        }
-//        headersMap["cookie"] =
-//            replaceCookiesInString(EmptyContent.headers["Cookie"]!!, newCookies)
-        return listOf(User("", "Default", extras = headersMap))
+        val headersMap = mutableMapOf(
+            "cookie" to cookie,
+            "authorization" to auth
+        )
+
+        val headers = headers {
+            headersMap.forEach { (t, u) -> append(t, u) }
+        }
+        val jsonParser = Json { ignoreUnknownKeys = true }
+        return api.client.request("https://music.youtube.com/getAccountSwitcherEndpoint") {
+            headers {
+                append("referer", "https://music.youtube.com/")
+                appendAll(headers)
+            }
+        }.bodyAsText().let {
+            val trimmed = it.substringAfter(")]}'")
+            jsonParser.decodeFromString<GoogleAccountResponse>(trimmed)
+        }.getArtists(cookie, auth)
     }
 
     override suspend fun onSetLoginUser(user: User) {
+        val cookie = user.extras["cookie"]
+            ?: throw Exception("No cookie")
+        val auth = user.extras["auth"]
+            ?: throw Exception("No auth")
+        val signInUrl = user.extras["signInUrl"]
+            ?: throw Exception("No sign in url")
+
+        val response = api.client.get("https://music.youtube.com/$signInUrl") {
+            expectSuccess = true
+            headers {
+                append("cookie", cookie)
+                append("authorization", auth)
+            }
+        }
+
+        val newCookies = response.headers.flattenEntries().mapNotNull { header ->
+            if (header.first.lowercase() == "set-cookie") header.second
+            else null
+        }
         val headers = headers {
-            user.extras.forEach { (t, u) -> append(t, u) }
+            append("cookie", replaceCookiesInString(cookie, newCookies))
+            append("authorization", auth)
         }
         val authenticationState =
             YoutubeiAuthenticationState(api, headers, user.id.ifEmpty { null })

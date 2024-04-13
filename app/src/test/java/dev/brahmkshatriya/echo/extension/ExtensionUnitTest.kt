@@ -10,6 +10,7 @@ import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
+import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
@@ -209,9 +210,10 @@ class ExtensionUnitTest {
     @Test
     fun testAlbumGet() = testIn("Testing Album Get") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
-        val track = extension.loadTrack(searchTrack())
+//        val small = extension.loadTrack(searchTrack()).album ?: error("Track has no album")
+        val small = Album("MPREb_zgcvnHHrPoc","")
         if (extension !is AlbumClient) error("AlbumClient is not implemented")
-        val album = extension.loadAlbum(track.album ?: error("Track has no album"))
+        val album = extension.loadAlbum(small)
         println(album)
     }
 
@@ -219,11 +221,12 @@ class ExtensionUnitTest {
     fun testPlaylistMediaItems() = testIn("Testing Playlist Media Items") {
         if (extension !is PlaylistClient) error("PlaylistClient is not implemented")
         val playlist =
-            extension.loadPlaylist(Playlist("RDCLAK5uy_n38QBvlkETFzw_TX8Z7wfA733kKr2vo0o", ""))
+            extension.loadPlaylist(Playlist("OLAK5uy_nzng1uXYiMNsFOLmnNw9bPIUkZq95Pj7k", ""))
         println(playlist)
         val mediaItems = extension.getMediaItems(playlist).getItems(differ)
         mediaItems.forEach {
             println(it)
         }
     }
+
 }
