@@ -20,9 +20,11 @@ import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.QuickSearchItem
+import dev.brahmkshatriya.echo.common.models.Request
 import dev.brahmkshatriya.echo.common.models.Request.Companion.toRequest
 import dev.brahmkshatriya.echo.common.models.Streamable
 import dev.brahmkshatriya.echo.common.models.StreamableAudio.Companion.toAudio
+import dev.brahmkshatriya.echo.common.models.StreamableVideo
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.settings.Setting
@@ -116,6 +118,8 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
 
     override suspend fun getStreamableAudio(streamable: Streamable) = streamable.id.toAudio()
+    override suspend fun getStreamableVideo(streamable: Streamable) =
+        StreamableVideo(Request(streamable.id), looping = false, crop = false)
 
     override suspend fun loadTrack(track: Track) = coroutineScope {
         val newTrack = async {
@@ -132,12 +136,18 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
             it.url ?: return@mapNotNull null
             Streamable(it.url, it.bitrate)
         }
-        val adaptive = video.streamingData.adaptiveFormats.mapNotNull {
-            it.url ?: return@mapNotNull null
+        val adaptiveAudio = video.streamingData.adaptiveFormats.mapNotNull {
+            if (!it.mimeType.contains("audio")) return@mapNotNull null
             Streamable(it.url, it.bitrate)
         }
+        val adaptiveVideo = video.streamingData.adaptiveFormats.mapNotNull {
+            if (!it.mimeType.contains("video")) return@mapNotNull null
+            Streamable(it.url, it.bitrate)
+        }
+
         newTrack.await().toTrack(HIGH).copy(
-            streamables = formats + adaptive,
+            audioStreamables = formats + adaptiveAudio,
+            videoStreamable = formats + adaptiveVideo,
             expiresAt = expiresAt,
             plays = video.videoDetails.viewCount?.toIntOrNull()
         )

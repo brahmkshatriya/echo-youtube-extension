@@ -7,7 +7,6 @@ import dev.brahmkshatriya.echo.common.models.ImageHolder
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
-import dev.brahmkshatriya.echo.common.models.Streamable
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.english
 import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.singles
@@ -82,8 +81,7 @@ fun YtmPlaylist.toPlaylist(quality: ThumbnailProvider.Quality): Playlist {
 }
 
 fun YtmSong.toTrack(
-    quality: ThumbnailProvider.Quality,
-    streams: List<Streamable> = listOf()
+    quality: ThumbnailProvider.Quality
 ): Track {
     val album = album?.toAlbum(false, quality)
     val extras = related_browse_id?.let { mapOf("relatedId" to it) }
@@ -91,7 +89,6 @@ fun YtmSong.toTrack(
         id = id,
         title = name ?: "Unknown",
         artists = artists?.map { it.toArtist(quality) } ?: emptyList(),
-        streamables = streams,
         cover = getCover(id, quality),
         album = album,
         duration = duration,

@@ -183,7 +183,8 @@ class ExtensionUnitTest {
         val search = searchTrack()
         measureTimeMillis {
             val track = extension.loadTrack(search)
-            val streamable = track.streamables.firstOrNull() ?: error("Track is not streamable")
+            val streamable = track.audioStreamables.firstOrNull()
+                ?: error("Track is not streamable")
             val stream = extension.getStreamableAudio(streamable)
             println(stream)
         }.also { println("time : $it") }
