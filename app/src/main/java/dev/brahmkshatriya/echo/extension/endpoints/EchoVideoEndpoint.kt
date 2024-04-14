@@ -5,839 +5,486 @@ package dev.brahmkshatriya.echo.extension.endpoints
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiRequestData
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import dev.toastbits.ytmkt.model.YtmApi
-import dev.toastbits.ytmkt.model.external.Thumbnail
-import dev.toastbits.ytmkt.model.external.ThumbnailProvider
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.*
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.put
 
 class EchoVideoEndpoint(override val api: YtmApi) : ApiEndpoint() {
 
     @OptIn(ExperimentalSerializationApi::class)
     suspend fun getVideo(id: String) = runCatching {
-        val response: HttpResponse =
-            api.client.request {
-                endpointPath("player")
-                addApiHeadersWithAuthenticated()
-                postWithBody(YoutubeiRequestData.getYtmContextAndroidMusic(YoutubeiRequestData.default_hl)) {
-                    put("videoId", id)
-                    put("playlistId", null)
-                }
+        val response: HttpResponse = api.client.request {
+            endpointPath("player")
+            addApiHeadersWithAuthenticated()
+            postWithBody(YoutubeiRequestData.getYtmContextAndroidMusic(YoutubeiRequestData.default_hl)) {
+                put("videoId", id)
+                put("playlistId", null)
             }
+        }
         return@runCatching response.body<YoutubeFormatResponse>()
     }
 }
 
-
 @Serializable
 data class YoutubeFormatResponse(
-    val responseContext: ResponseContext,
-    val playabilityStatus: PlayabilityStatus,
     val streamingData: StreamingData,
-    val playerAds: List<PlayerAd>,
-    val playbackTracking: PlaybackTracking,
-    val videoDetails: YoutubeFormatResponseVideoDetails,
-    val playerConfig: PlayerConfig,
-    val storyboards: Storyboards,
-    val microformat: Microformat,
-    val trackingParams: String,
-    val attestation: Attestation,
-    val adPlacements: List<AdPlacement>,
-    val adSlots: List<AdSlot>,
-    val adBreakHeartbeatParams: String
+    val videoDetails: VideoDetails,
 )
 
 @Serializable
-data class AdPlacement(
-    val adPlacementRenderer: AdPlacementRenderer
+data class Attestation(
+    val playerAttestationRenderer: PlayerAttestationRenderer? = null
 )
 
 @Serializable
-data class AdPlacementRenderer(
-    val config: Config,
-    val renderer: Renderer,
-    val adSlotLoggingData: AdSlotLoggingData
+data class PlayerAttestationRenderer(
+    val challenge: String? = null
 )
 
 @Serializable
-data class AdSlotLoggingData(
-    val serializedSlotAdServingDataEntry: String
+data class PlayabilityStatus(
+    val status: String? = null,
+    val playableInEmbed: Boolean? = null,
+    val offlineability: Offlineability? = null,
+    val backgroundability: Backgroundability? = null,
+    val audioOnlyPlayability: AudioOnlyPlayability? = null,
+    val miniplayer: Miniplayer? = null,
+    val contextParams: String? = null
 )
 
 @Serializable
-data class Config(
-    val adPlacementConfig: AdPlacementConfig
+data class AudioOnlyPlayability(
+    val audioOnlyPlayabilityRenderer: AudioOnlyPlayabilityRenderer? = null
 )
 
 @Serializable
-data class AdPlacementConfig(
-    val kind: String,
-    val adTimeOffset: AdTimeOffset,
-    val hideCueRangeMarker: Boolean
+data class AudioOnlyPlayabilityRenderer(
+    val trackingParams: String? = null,
+    val audioOnlyAvailability: String? = null
 )
 
 @Serializable
-data class AdTimeOffset(
-    val offsetStartMilliseconds: String,
-    val offsetEndMilliseconds: String
+data class Backgroundability(
+    val backgroundabilityRenderer: BackgroundabilityRenderer? = null
 )
 
 @Serializable
-data class Renderer(
-    val linearAdSequenceRenderer: LinearAdSequenceRenderer? = null,
-    val adBreakServiceRenderer: AdBreakServiceRenderer? = null
+data class BackgroundabilityRenderer(
+    val backgroundable: Boolean? = null
 )
 
 @Serializable
-data class AdBreakServiceRenderer(
-    val prefetchMilliseconds: String,
-    val getAdBreakUrl: String
+data class Miniplayer(
+    val miniplayerRenderer: MiniplayerRenderer? = null
 )
 
 @Serializable
-data class LinearAdSequenceRenderer(
-    val linearAds: List<LinearAd>
+data class MiniplayerRenderer(
+    val playbackMode: String? = null
 )
 
 @Serializable
-data class LinearAd(
-    val instreamVideoAdRenderer: LinearAdInstreamVideoAdRenderer
+data class Offlineability(
+    val offlineabilityRenderer: OfflineabilityRenderer? = null
 )
 
 @Serializable
-data class LinearAdInstreamVideoAdRenderer(
-    val playerOverlay: PlayerOverlay,
-    val trackingParams: String,
-    val layoutId: String,
-    val associatedPlayerBytesLayoutId: String
+data class OfflineabilityRenderer(
+    val offlineable: Boolean? = null,
+    val clickTrackingParams: String? = null
 )
 
 @Serializable
-data class PlayerOverlay(
-    val instreamAdPlayerOverlayRenderer: InstreamAdPlayerOverlayRenderer
+data class PlaybackTracking(
+    val videostatsPlaybackUrl: URL? = null,
+    val videostatsDelayplayUrl: URL? = null,
+    val videostatsWatchtimeUrl: URL? = null,
+    val ptrackingUrl: URL? = null,
+    val qoeUrl: URL? = null,
+    val atrUrl: AtrUrl? = null,
+    val videostatsScheduledFlushWalltimeSeconds: List<Long>? = null,
+    val videostatsDefaultFlushIntervalSeconds: Long? = null
 )
 
 @Serializable
-data class InstreamAdPlayerOverlayRenderer(
-    val skipOrPreviewRenderer: SkipOrPreviewRenderer,
-    val trackingParams: String,
-    val visitAdvertiserRenderer: VisitAdvertiserRenderer,
-    val adBadgeRenderer: AdBadgeRenderer,
-    val adDurationRemaining: AdDurationRemaining,
-    val adInfoRenderer: AdInfoRenderer,
-    val adLayoutLoggingData: AdLayoutLoggingData,
-    val elementId: String,
-    val inPlayerSlotId: String,
-    val inPlayerLayoutId: String
-)
-
-@Serializable
-data class AdBadgeRenderer(
-    val simpleAdBadgeRenderer: SimpleAdBadgeRenderer
-)
-
-@Serializable
-data class SimpleAdBadgeRenderer(
-    val text: StaticPreviewClass,
-    val trackingParams: String
-)
-
-@Serializable
-data class StaticPreviewClass(
-    val text: String,
-    val isTemplated: Boolean,
-    val trackingParams: String
-)
-
-@Serializable
-data class AdDurationRemaining(
-    val adDurationRemainingRenderer: AdDurationRemainingRenderer
-)
-
-@Serializable
-data class AdDurationRemainingRenderer(
-    val templatedCountdown: TemplatedCountdown,
-    val trackingParams: String
-)
-
-@Serializable
-data class TemplatedCountdown(
-    val templatedAdText: StaticPreviewClass
-)
-
-@Serializable
-data class AdInfoRenderer(
-    val adHoverTextButtonRenderer: AdHoverTextButtonRenderer
-)
-
-@Serializable
-data class AdHoverTextButtonRenderer(
-    val button: Button,
-    val hoverText: HoverTextClass,
-    val trackingParams: String
-)
-
-@Serializable
-data class Button(
-    val buttonRenderer: ButtonButtonRenderer
-)
-
-@Serializable
-data class ButtonButtonRenderer(
-    val style: String,
-    val size: String,
-    val isDisabled: Boolean,
-    val serviceEndpoint: ServiceEndpoint,
-    val icon: Icon,
-    val trackingParams: String,
-    val accessibilityData: ButtonRendererAccessibilityData
-)
-
-@Serializable
-data class ButtonRendererAccessibilityData(
-    val accessibilityData: AccessibilityDataAccessibilityData
-)
-
-@Serializable
-data class AccessibilityDataAccessibilityData(
-    val label: String
-)
-
-@Serializable
-data class Icon(
-    val iconType: String
-)
-
-@Serializable
-data class ServiceEndpoint(
-    val clickTrackingParams: String,
-    val openPopupAction: OpenPopupAction
-)
-
-@Serializable
-data class OpenPopupAction(
-    val popup: Popup,
-    val popupType: String
-)
-
-@Serializable
-data class Popup(
-    val aboutThisAdRenderer: AboutThisAdRenderer
-)
-
-@Serializable
-data class AboutThisAdRenderer(
-    val url: URL,
-    val trackingParams: String
-)
-
-@Serializable
-data class URL(
-    val privateDoNotAccessOrElseTrustedResourceUrlWrappedValue: String
-)
-
-@Serializable
-data class HoverTextClass(
-    val runs: List<Run>
-)
-
-@Serializable
-data class Run(
-    val text: String
-)
-
-@Serializable
-data class AdLayoutLoggingData(
-    val serializedAdServingDataEntry: String
-)
-
-@Serializable
-data class SkipOrPreviewRenderer(
-    val adPreviewRenderer: SkipOrPreviewRendererAdPreviewRenderer? = null,
-    val skipAdRenderer: SkipAdRenderer? = null
-)
-
-@Serializable
-data class SkipOrPreviewRendererAdPreviewRenderer(
-    val trackingParams: String,
-    val staticPreview: StaticPreviewClass
-)
-
-@Serializable
-data class SkipAdRenderer(
-    val preskipRenderer: PreskipRenderer,
-    val skippableRenderer: SkippableRenderer,
-    val trackingParams: String,
-    val skipOffsetMilliseconds: Long
-)
-
-@Serializable
-data class PreskipRenderer(
-    val adPreviewRenderer: PreskipRendererAdPreviewRenderer
-)
-
-@Serializable
-data class PreskipRendererAdPreviewRenderer(
-    val thumbnail: AdPreviewRendererThumbnail,
-    val trackingParams: String,
-    val templatedCountdown: TemplatedCountdown,
-    val durationMilliseconds: Long
-)
-
-@Serializable
-data class AdPreviewRendererThumbnail(
-    val thumbnail: MicroformatDataRendererThumbnail,
-    val trackingParams: String
-)
-
-@Serializable
-data class MicroformatDataRendererThumbnail(
-    val thumbnails: List<Thumbnail>
-){
-    fun provider() = ThumbnailProvider.fromThumbnails(thumbnails)
-}
-
-@Serializable
-data class SkippableRenderer(
-    val skipButtonRenderer: SkipButtonRenderer
-)
-
-@Serializable
-data class SkipButtonRenderer(
-    val message: StaticPreviewClass,
-    val trackingParams: String
-)
-
-@Serializable
-data class VisitAdvertiserRenderer(
-    val buttonRenderer: VisitAdvertiserRendererButtonRenderer
-)
-
-@Serializable
-data class VisitAdvertiserRendererButtonRenderer(
-    val style: String,
-    val text: HoverTextClass,
-    val icon: Icon,
-    val navigationEndpoint: Endpoint,
-    val trackingParams: String
-)
-
-@Serializable
-data class Endpoint(
-    val clickTrackingParams: String,
-    val urlEndpoint: URLEndpoint
-)
-
-@Serializable
-data class URLEndpoint(
-    val url: String,
-    val target: String,
-    val attributionSrcMode: String
-)
-
-@Serializable
-data class AdSlot(
-    val adSlotRenderer: AdSlotRenderer
-)
-
-@Serializable
-data class AdSlotRenderer(
-    val adSlotMetadata: AdSlotMetadata,
-    val fulfillmentContent: FulfillmentContent,
-    val slotEntryTrigger: SlotEntryTrigger,
-    val slotFulfillmentTriggers: List<SlotFulfillmentTrigger>,
-    val slotExpirationTriggers: List<SlotExpirationTrigger>
-)
-
-@Serializable
-data class AdSlotMetadata(
-    val slotId: String,
-    val slotType: String,
-    val adSlotLoggingData: AdSlotLoggingData,
-    val triggerEvent: String
-)
-
-@Serializable
-data class FulfillmentContent(
-    val fulfilledLayout: FulfilledLayout
-)
-
-@Serializable
-data class FulfilledLayout(
-    val playerBytesAdLayoutRenderer: FulfilledLayoutPlayerBytesAdLayoutRenderer
-)
-
-@Serializable
-data class FulfilledLayoutPlayerBytesAdLayoutRenderer(
-    val adLayoutMetadata: AdLayoutMetadata,
-    val renderingContent: PurpleRenderingContent,
-    val layoutExitNormalTriggers: List<LayoutExitNormalTrigger>,
-    val layoutExitSkipTriggers: List<LayoutExitTrigger>,
-    val layoutExitMuteTriggers: List<LayoutExitTrigger>
-)
-
-@Serializable
-data class AdLayoutMetadata(
-    val layoutId: String,
-    val layoutType: String,
-    val adLayoutLoggingData: AdLayoutLoggingData
-)
-
-@Serializable
-data class LayoutExitTrigger(
-    val id: String,
-    val skipRequestedTrigger: RequestedTrigger
-)
-
-@Serializable
-data class RequestedTrigger(
-    val triggeringLayoutId: String
-)
-
-@Serializable
-data class LayoutExitNormalTrigger(
-    val id: String,
-    val onLayoutSelfExitRequestedTrigger: RequestedTrigger
-)
-
-@Serializable
-data class PurpleRenderingContent(
-    val playerBytesSequentialLayoutRenderer: PlayerBytesSequentialLayoutRenderer
-)
-
-@Serializable
-data class PlayerBytesSequentialLayoutRenderer(
-    val sequentialLayouts: List<SequentialLayout>
-)
-
-@Serializable
-data class SequentialLayout(
-    val playerBytesAdLayoutRenderer: SequentialLayoutPlayerBytesAdLayoutRenderer
-)
-
-@Serializable
-data class SequentialLayoutPlayerBytesAdLayoutRenderer(
-    val adLayoutMetadata: AdLayoutMetadata,
-    val renderingContent: FluffyRenderingContent
-)
-
-@Serializable
-data class FluffyRenderingContent(
-    val instreamVideoAdRenderer: RenderingContentInstreamVideoAdRenderer
-)
-
-@Serializable
-data class RenderingContentInstreamVideoAdRenderer(
-    val pings: Pings,
-    val clickthroughEndpoint: Endpoint,
-    val csiParameters: List<Param>,
-    val playerVars: String,
-    val elementId: String,
-    val trackingParams: String,
-    val legacyInfoCardVastExtension: String,
-    val sodarExtensionData: SodarExtensionData,
-    val externalVideoId: String,
-    val adLayoutLoggingData: AdLayoutLoggingData,
-    val layoutId: String,
-    val skipOffsetMilliseconds: Long? = null
-)
-
-@Serializable
-data class Param(
-    val key: String,
-    val value: String
-)
-
-@Serializable
-data class Pings(
-    val impressionPings: List<ImpressionPing>,
-    val errorPings: List<Ping>,
-    val mutePings: List<Ping>,
-    val unmutePings: List<Ping>,
-    val pausePings: List<Ping>,
-    val rewindPings: List<Ping>,
-    val resumePings: List<Ping>,
-    val closePings: List<Ping>,
-    val clickthroughPings: List<ClickthroughPing>,
-    val fullscreenPings: List<Ping>,
-    val activeViewViewablePings: List<Ping>,
-    val activeViewMeasurablePings: List<Ping>,
-    val abandonPings: List<Ping>,
-    val activeViewFullyViewableAudibleHalfDurationPings: List<Ping>,
-    val startPings: List<Ping>,
-    val firstQuartilePings: List<Ping>,
-    val secondQuartilePings: List<Ping>,
-    val thirdQuartilePings: List<Ping>,
-    val completePings: List<Ping>,
-    val activeViewTracking: ActiveViewTracking,
-    val skipPings: List<Ping>? = null,
-    val progressPings: List<ProgressPing>? = null
-)
-
-@Serializable
-data class Ping(
-    val baseUrl: String
-)
-
-@Serializable
-data class ActiveViewTracking(
-    val trafficType: String,
-    val identifier: String
-)
-
-@Serializable
-data class ClickthroughPing(
-    val baseUrl: String,
-    val attributionSrcMode: String
-)
-
-@Serializable
-data class ImpressionPing(
-    val baseUrl: String,
-    val attributionSrcMode: String? = null,
+data class AtrUrl(
+    val baseUrl: String? = null,
+    val elapsedMediaTimeSeconds: Long? = null,
     val headers: List<Header>? = null
 )
 
 @Serializable
 data class Header(
-    val headerType: HeaderType
+    val headerType: HeaderType? = null
 )
 
 @Serializable
 enum class HeaderType(val value: String) {
     @SerialName("PLUS_PAGE_ID")
     PlusPageID("PLUS_PAGE_ID"),
+
     @SerialName("USER_AUTH")
     UserAuth("USER_AUTH"),
+
     @SerialName("VISITOR_ID")
     VisitorID("VISITOR_ID");
 }
 
 @Serializable
-data class ProgressPing(
-    val baseUrl: String,
-    val offsetMilliseconds: Long,
-    val attributionSrcMode: String? = null
-)
-
-@Serializable
-data class SodarExtensionData(
-    val siub: String,
-    val bgub: String,
-    val scs: String,
-    val bgp: String
-)
-
-@Serializable
-data class SlotEntryTrigger(
-    val id: String,
-    val beforeContentVideoIdStartedTrigger: DTrigger
-)
-
-@Serializable
-class DTrigger
-
-@Serializable
-data class SlotExpirationTrigger(
-    val id: String,
-    val slotIdExitedTrigger: SlotidEedTrigger? = null,
-    val onNewPlaybackAfterContentVideoIdTrigger: DTrigger? = null
-)
-
-@Serializable
-data class SlotidEedTrigger(
-    val triggeringSlotId: String
-)
-
-@Serializable
-data class SlotFulfillmentTrigger(
-    val id: String,
-    val slotIdEnteredTrigger: SlotidEedTrigger
-)
-
-@Serializable
-data class Attestation(
-    val playerAttestationRenderer: PlayerAttestationRenderer
-)
-
-@Serializable
-data class PlayerAttestationRenderer(
-    val challenge: String,
-    val botguardData: BotguardData
-)
-
-@Serializable
-data class BotguardData(
-    val program: String,
-    val interpreterSafeUrl: URL,
-    val serverEnvironment: Long
-)
-
-@Serializable
-data class Microformat(
-    val microformatDataRenderer: MicroformatDataRenderer
-)
-
-@Serializable
-data class MicroformatDataRenderer(
-    val urlCanonical: String,
-    val title: String,
-    val description: String,
-    val thumbnail: MicroformatDataRendererThumbnail,
-    val siteName: String,
-    val appName: String,
-    val androidPackage: String,
-    val iosAppStoreId: String,
-    val iosAppArguments: String,
-    val ogType: String,
-    val urlApplinksIos: String,
-    val urlApplinksAndroid: String,
-    val urlTwitterIos: String,
-    val urlTwitterAndroid: String,
-    val twitterCardType: String,
-    val twitterSiteHandle: String,
-    val schemaDotOrgType: String,
-    val noindex: Boolean,
-    val unlisted: Boolean,
-    val paid: Boolean,
-    val familySafe: Boolean,
-    val tags: List<String>,
-    val availableCountries: List<String>,
-    val pageOwnerDetails: PageOwnerDetails,
-    val videoDetails: MicroformatDataRendererVideoDetails,
-    val linkAlternates: List<LinkAlternate>,
-    val viewCount: String,
-    val publishDate: String,
-    val category: String,
-    val uploadDate: String
-)
-
-@Serializable
-data class LinkAlternate(
-    val hrefUrl: String,
-    val title: String? = null,
-    val alternateType: String? = null
-)
-
-@Serializable
-data class PageOwnerDetails(
-    val name: String,
-    val externalChannelId: String,
-    val youtubeProfileUrl: String
-)
-
-@Serializable
-data class MicroformatDataRendererVideoDetails(
-    val externalVideoId: String,
-    val durationSeconds: String,
-    val durationIso8601: String
-)
-
-@Serializable
-data class PlayabilityStatus(
-    val status: String,
-    val playableInEmbed: Boolean,
-    val audioOnlyPlayability: AudioOnlyPlayability,
-    val miniplayer: Miniplayer,
-    val contextParams: String
-)
-
-@Serializable
-data class AudioOnlyPlayability(
-    val audioOnlyPlayabilityRenderer: AudioOnlyPlayabilityRenderer
-)
-
-@Serializable
-data class AudioOnlyPlayabilityRenderer(
-    val trackingParams: String,
-    val audioOnlyAvailability: String
-)
-
-@Serializable
-data class Miniplayer(
-    val miniplayerRenderer: MiniplayerRenderer
-)
-
-@Serializable
-data class MiniplayerRenderer(
-    val playbackMode: String
-)
-
-@Serializable
-data class PlaybackTracking(
-    val videostatsPlaybackUrl: PtrackingUrlClass,
-    val videostatsDelayplayUrl: PtrackingUrlClass,
-    val videostatsWatchtimeUrl: PtrackingUrlClass,
-    val ptrackingUrl: PtrackingUrlClass,
-    val qoeUrl: PtrackingUrlClass,
-    val atrUrl: AtrUrl,
-    val videostatsScheduledFlushWalltimeSeconds: List<Long>,
-    val videostatsDefaultFlushIntervalSeconds: Long
-)
-
-@Serializable
-data class AtrUrl(
-    val baseUrl: String,
-    val elapsedMediaTimeSeconds: Long,
-    val headers: List<Header>
-)
-
-@Serializable
-data class PtrackingUrlClass(
-    val baseUrl: String,
-    val headers: List<Header>
-)
-
-@Serializable
-data class PlayerAd(
-    val playerLegacyDesktopWatchAdsRenderer: PlayerLegacyDesktopWatchAdsRenderer
-)
-
-@Serializable
-data class PlayerLegacyDesktopWatchAdsRenderer(
-    val playerAdParams: PlayerAdParams,
-    val gutParams: GutParams,
-    val showCompanion: Boolean,
-    val showInstream: Boolean,
-    val useGut: Boolean
-)
-
-@Serializable
-data class GutParams(
-    val tag: String
-)
-
-@Serializable
-data class PlayerAdParams(
-    val showContentThumbnail: Boolean,
-    val enabledEngageTypes: String
+data class URL(
+    val baseUrl: String? = null,
+    val headers: List<Header>? = null
 )
 
 @Serializable
 data class PlayerConfig(
-    val audioConfig: AudioConfig,
-    val streamSelectionConfig: StreamSelectionConfig,
-    val mediaCommonConfig: MediaCommonConfig,
-    val webPlayerConfig: WebPlayerConfig
+    val audioConfig: AudioConfig? = null,
+    val exoPlayerConfig: ExoPlayerConfig? = null,
+    val adRequestConfig: AdRequestConfig? = null,
+    val networkProtocolConfig: NetworkProtocolConfig? = null,
+    val androidNetworkStackConfig: AndroidNetworkStackConfig? = null,
+    val lidarSdkConfig: LidarSdkConfig? = null,
+    val androidMedialibConfig: AndroidMedialibConfig? = null,
+    val variableSpeedConfig: VariableSpeedConfig? = null,
+    val decodeQualityConfig: DecodeQualityConfig? = null,
+    val playerRestorationConfig: PlayerRestorationConfig? = null,
+    val androidPlayerStatsConfig: AndroidPlayerStatsConfig? = null,
+    val retryConfig: RetryConfig? = null,
+    val cmsPathProbeConfig: CMSPathProbeConfig? = null,
+    val mediaCommonConfig: MediaCommonConfig? = null,
+    val taskCoordinatorConfig: TaskCoordinatorConfig? = null
+)
+
+@Serializable
+data class AdRequestConfig(
+    val useCriticalExecOnAdsPrep: Boolean? = null,
+    val userCriticalExecOnAdsProcessing: Boolean? = null
+)
+
+@Serializable
+data class AndroidMedialibConfig(
+    val isItag18MainProfile: Boolean? = null,
+    val viewportSizeFraction: Double? = null
+)
+
+@Serializable
+data class AndroidNetworkStackConfig(
+    val networkStack: String? = null,
+    val androidMetadataNetworkConfig: AndroidMetadataNetworkConfig? = null
+)
+
+@Serializable
+data class AndroidMetadataNetworkConfig(
+    val coalesceRequests: Boolean? = null
+)
+
+@Serializable
+data class AndroidPlayerStatsConfig(
+    val usePblForAttestationReporting: Boolean? = null,
+    val usePblForHeartbeatReporting: Boolean? = null,
+    val usePblForPlaybacktrackingReporting: Boolean? = null,
+    val usePblForQoeReporting: Boolean? = null,
+    val changeCpnOnFatalPlaybackError: Boolean? = null
 )
 
 @Serializable
 data class AudioConfig(
-    val loudnessDb: Double,
-    val perceptualLoudnessDb: Double,
-    val enablePerFormatLoudness: Boolean
+    val loudnessDb: Double? = null,
+    val perceptualLoudnessDb: Double? = null,
+    val playAudioOnly: Boolean? = null,
+    val enablePerFormatLoudness: Boolean? = null
+)
+
+@Serializable
+data class CMSPathProbeConfig(
+    val cmsPathProbeDelayMs: Long? = null
+)
+
+@Serializable
+data class DecodeQualityConfig(
+    val maximumVideoDecodeVerticalResolution: Long? = null
+)
+
+@Serializable
+data class ExoPlayerConfig(
+    val useExoPlayer: Boolean? = null,
+    val useAdaptiveBitrate: Boolean? = null,
+    val maxInitialByteRate: Long? = null,
+    val minDurationForQualityIncreaseMs: Long? = null,
+    val maxDurationForQualityDecreaseMs: Long? = null,
+    val minDurationToRetainAfterDiscardMs: Long? = null,
+    val lowWatermarkMs: Long? = null,
+    val highWatermarkMs: Long? = null,
+    val lowPoolLoad: Double? = null,
+    val highPoolLoad: Double? = null,
+    val sufficientBandwidthOverhead: Double? = null,
+    val bufferChunkSizeKb: Long? = null,
+    val httpConnectTimeoutMs: Long? = null,
+    val httpReadTimeoutMs: Long? = null,
+    val numAudioSegmentsPerFetch: Long? = null,
+    val numVideoSegmentsPerFetch: Long? = null,
+    val minDurationForPlaybackStartMs: Long? = null,
+    val enableExoplayerReuse: Boolean? = null,
+    val useRadioTypeForInitialQualitySelection: Boolean? = null,
+    val blacklistFormatOnError: Boolean? = null,
+    val enableBandaidHttpDataSource: Boolean? = null,
+    val httpLoadTimeoutMs: Long? = null,
+    val canPlayHdDrm: Boolean? = null,
+    val videoBufferSegmentCount: Long? = null,
+    val audioBufferSegmentCount: Long? = null,
+    val useAbruptSplicing: Boolean? = null,
+    val minRetryCount: Long? = null,
+    val minChunksNeededToPreferOffline: Long? = null,
+    val secondsToMaxAggressiveness: Long? = null,
+    val enableSurfaceviewResizeWorkaround: Boolean? = null,
+    val enableVp9IfThresholdsPass: Boolean? = null,
+    val matchQualityToViewportOnUnfullscreen: Boolean? = null,
+    val lowAudioQualityConnTypes: List<String>? = null,
+    val useDashForLiveStreams: Boolean? = null,
+    val enableLibvpxVideoTrackRenderer: Boolean? = null,
+    val lowAudioQualityBandwidthThresholdBps: Long? = null,
+    val enableVariableSpeedPlayback: Boolean? = null,
+    val preferOnesieBufferedFormat: Boolean? = null,
+    val minimumBandwidthSampleBytes: Long? = null,
+    val useDashForOtfAndCompletedLiveStreams: Boolean? = null,
+    val disableCacheAwareVideoFormatEvaluation: Boolean? = null,
+    val useLiveDvrForDashLiveStreams: Boolean? = null,
+    val cronetResetTimeoutOnRedirects: Boolean? = null,
+    val emitVideoDecoderChangeEvents: Boolean? = null,
+    val onesieVideoBufferLoadTimeoutMs: String? = null,
+    val onesieVideoBufferReadTimeoutMs: String? = null,
+    val libvpxEnableGl: Boolean? = null,
+    val enableVp9EncryptedIfThresholdsPass: Boolean? = null,
+    val enableOpus: Boolean? = null,
+    val usePredictedBuffer: Boolean? = null,
+    val maxReadAheadMediaTimeMs: Long? = null,
+    val useMediaTimeCappedLoadControl: Boolean? = null,
+    val allowCacheOverrideToLowerQualitiesWithinRange: Long? = null,
+    val allowDroppingUndecodedFrames: Boolean? = null,
+    val minDurationForPlaybackRestartMs: Long? = null,
+    val serverProvidedBandwidthHeader: String? = null,
+    val liveOnlyPegStrategy: String? = null,
+    val enableRedirectorHostFallback: Boolean? = null,
+    val enableHighlyAvailableFormatFallbackOnPcr: Boolean? = null,
+    val recordTrackRendererTimingEvents: Boolean? = null,
+    val minErrorsForRedirectorHostFallback: Long? = null,
+    val nonHardwareMediaCodecNames: List<String>? = null,
+    val enableVp9IfInHardware: Boolean? = null,
+    val enableVp9EncryptedIfInHardware: Boolean? = null,
+    val useOpusMedAsLowQualityAudio: Boolean? = null,
+    val minErrorsForPcrFallback: Long? = null,
+    val useStickyRedirectHttpDataSource: Boolean? = null,
+    val onlyVideoBandwidth: Boolean? = null,
+    val useRedirectorOnNetworkChange: Boolean? = null,
+    val enableMaxReadaheadAbrThreshold: Boolean? = null,
+    val cacheCheckDirectoryWritabilityOnce: Boolean? = null,
+    val predictorType: String? = null,
+    val slidingPercentile: Double? = null,
+    val slidingWindowSize: Long? = null,
+    val maxFrameDropIntervalMs: Long? = null,
+    val ignoreLoadTimeoutForFallback: Boolean? = null,
+    val serverBweMultiplier: Long? = null,
+    val drmMaxKeyfetchDelayMs: Long? = null,
+    val maxResolutionForWhiteNoise: Long? = null,
+    val whiteNoiseRenderEffectMode: String? = null,
+    val enableLibvpxHdr: Boolean? = null,
+    val enableCacheAwareStreamSelection: Boolean? = null,
+    val useExoCronetDataSource: Boolean? = null,
+    val whiteNoiseScale: Long? = null,
+    val whiteNoiseOffset: Long? = null,
+    val preventVideoFrameLaggingWithLibvpx: Boolean? = null,
+    val enableMediaCodecHdr: Boolean? = null,
+    val enableMediaCodecSwHdr: Boolean? = null,
+    val liveOnlyWindowChunks: Long? = null,
+    val bearerMinDurationToRetainAfterDiscardMs: List<Long>? = null,
+    val forceWidevineL3: Boolean? = null,
+    val useAverageBitrate: Boolean? = null,
+    val useMedialibAudioTrackRendererForLive: Boolean? = null,
+    val useExoPlayerV2: Boolean? = null,
+    val logMediaRequestEventsToCsi: Boolean? = null,
+    val onesieFixNonZeroStartTimeFormatSelection: Boolean? = null,
+    val liveOnlyReadaheadStepSizeChunks: Long? = null,
+    val liveOnlyBufferHealthHalfLifeSeconds: Long? = null,
+    val liveOnlyMinBufferHealthRatio: Double? = null,
+    val liveOnlyMinLatencyToSeekRatio: Long? = null,
+    val manifestlessPartialChunkStrategy: String? = null,
+    val ignoreViewportSizeWhenSticky: Boolean? = null,
+    val enableLibvpxFallback: Boolean? = null,
+    val disableLibvpxLoopFilter: Boolean? = null,
+    val enableVpxMediaView: Boolean? = null,
+    val hdrMinScreenBrightness: Long? = null,
+    val hdrMaxScreenBrightnessThreshold: Long? = null,
+    val onesieDataSourceAboveCacheDataSource: Boolean? = null,
+    val httpNonplayerLoadTimeoutMs: Long? = null,
+    val numVideoSegmentsPerFetchStrategy: String? = null,
+    val maxVideoDurationPerFetchMs: Long? = null,
+    val maxVideoEstimatedLoadDurationMs: Long? = null,
+    val estimatedServerClockHalfLife: Long? = null,
+    val estimatedServerClockStrictOffset: Boolean? = null,
+    val minReadAheadMediaTimeMs: Long? = null,
+    val readAheadGrowthRate: Long? = null,
+    val useDynamicReadAhead: Boolean? = null,
+    val useYtVodMediaSourceForV2: Boolean? = null,
+    val enableV2Gapless: Boolean? = null,
+    val useLiveHeadTimeMillis: Boolean? = null,
+    val allowTrackSelectionWithUpdatedVideoItagsForExoV2: Boolean? = null,
+    val maxAllowableTimeBeforeMediaTimeUpdateSec: Long? = null,
+    val enableDynamicHdr: Boolean? = null,
+    val v2PerformEarlyStreamSelection: Boolean? = null,
+    val v2UsePlaybackStreamSelectionResult: Boolean? = null,
+    val v2MinTimeBetweenAbrReevaluationMs: Long? = null,
+    val avoidReusePlaybackAcrossLoadvideos: Boolean? = null,
+    val enableInfiniteNetworkLoadingRetries: Boolean? = null,
+    val reportExoPlayerStateOnTransition: Boolean? = null,
+    val manifestlessSequenceMethod: String? = null,
+    val useLiveHeadWindow: Boolean? = null,
+    val enableDynamicHdrInHardware: Boolean? = null,
+    val ultralowAudioQualityBandwidthThresholdBps: Long? = null,
+    val retryLiveNetNocontentWithDelay: Boolean? = null,
+    val ignoreUnneededSeeksToLiveHead: Boolean? = null,
+    val drmMetricsQoeLoggingFraction: Double? = null,
+    val liveNetNocontentMaximumErrors: Long? = null,
+    val slidingPercentileScalar: Long? = null,
+    val minAdaptiveVideoQuality: Long? = null,
+    val platypusBackBufferDurationMs: Long? = null
+)
+
+@Serializable
+data class LidarSdkConfig(
+    val enableActiveViewReporter: Boolean? = null,
+    val useMediaTime: Boolean? = null,
+    val sendTosMetrics: Boolean? = null,
+    val usePlayerState: Boolean? = null,
+    val enableIosAppStateCheck: Boolean? = null,
+    val enableIsAndroidVideoAlwaysMeasurable: Boolean? = null,
+    val enableActiveViewAudioMeasurementAndroid: Boolean? = null
 )
 
 @Serializable
 data class MediaCommonConfig(
-    val dynamicReadaheadConfig: DynamicReadaheadConfig
+    val dynamicReadaheadConfig: DynamicReadaheadConfig? = null,
+    val mediaUstreamerRequestConfig: MediaUstreamerRequestConfig? = null,
+    val predictedReadaheadConfig: PredictedReadaheadConfig? = null,
+    val mediaFetchRetryConfig: MediaFetchRetryConfig? = null,
+    val mediaFetchMaximumServerErrors: Long? = null,
+    val mediaFetchMaximumNetworkErrors: Long? = null,
+    val mediaFetchMaximumErrors: Long? = null,
+    val serverReadaheadConfig: ServerReadaheadConfig? = null,
+    val useServerDrivenAbr: Boolean? = null
 )
 
 @Serializable
 data class DynamicReadaheadConfig(
-    val maxReadAheadMediaTimeMs: Long,
-    val minReadAheadMediaTimeMs: Long,
-    val readAheadGrowthRateMs: Long
+    val maxReadAheadMediaTimeMs: Long? = null,
+    val minReadAheadMediaTimeMs: Long? = null,
+    val readAheadGrowthRateMs: Long? = null,
+    val readAheadWatermarkMarginRatio: Long? = null,
+    val minReadAheadWatermarkMarginMs: Long? = null,
+    val maxReadAheadWatermarkMarginMs: Long? = null,
+    val shouldIncorporateNetworkActiveState: Boolean? = null
 )
 
 @Serializable
-data class StreamSelectionConfig(
-    val maxBitrate: String
+data class MediaFetchRetryConfig(
+    val initialDelayMs: Long? = null,
+    val backoffFactor: Double? = null,
+    val maximumDelayMs: Long? = null,
+    val jitterFactor: Double? = null
 )
 
 @Serializable
-data class WebPlayerConfig(
-    val useCobaltTvosDash: Boolean,
-    val webPlayerActionsPorting: WebPlayerActionsPorting
+data class MediaUstreamerRequestConfig(
+    val enableVideoPlaybackRequest: Boolean? = null,
+    val videoPlaybackUstreamerConfig: String? = null,
+    val videoPlaybackPostEmptyBody: Boolean? = null,
+    val isVideoPlaybackRequestIdempotent: Boolean? = null
 )
 
 @Serializable
-data class WebPlayerActionsPorting(
-    val subscribeCommand: SubscribeCommand,
-    val unsubscribeCommand: UnsubscribeCommand,
-    val addToWatchLaterCommand: AddToWatchLaterCommand,
-    val removeFromWatchLaterCommand: RemoveFromWatchLaterCommand
+data class PredictedReadaheadConfig(
+    val minReadaheadMs: Long? = null,
+    val maxReadaheadMs: Long? = null
 )
 
 @Serializable
-data class AddToWatchLaterCommand(
-    val clickTrackingParams: String,
-    val playlistEditEndpoint: AddToWatchLaterCommandPlaylistEditEndpoint
+data class ServerReadaheadConfig(
+    val enable: Boolean? = null,
+    val nextRequestPolicy: NextRequestPolicy? = null
 )
 
 @Serializable
-data class AddToWatchLaterCommandPlaylistEditEndpoint(
-    val playlistId: String,
-    val actions: List<PurpleAction>
+data class NextRequestPolicy(
+    val targetAudioReadaheadMs: Long? = null,
+    val targetVideoReadaheadMs: Long? = null
 )
 
 @Serializable
-data class PurpleAction(
-    val addedVideoId: String,
-    val action: String
+data class NetworkProtocolConfig(
+    val useQuic: Boolean? = null
 )
 
 @Serializable
-data class RemoveFromWatchLaterCommand(
-    val clickTrackingParams: String,
-    val playlistEditEndpoint: RemoveFromWatchLaterCommandPlaylistEditEndpoint
+data class PlayerRestorationConfig(
+    val restoreIntoStoppedState: Boolean? = null
 )
 
 @Serializable
-data class RemoveFromWatchLaterCommandPlaylistEditEndpoint(
-    val playlistId: String,
-    val actions: List<FluffyAction>
+data class RetryConfig(
+    val retryEligibleErrors: List<String>? = null,
+    val retryUnderSameConditionAttempts: Long? = null,
+    val retryWithNewSurfaceAttempts: Long? = null,
+    val progressiveFallbackOnNonNetworkErrors: Boolean? = null,
+    val l3FallbackOnDrmErrors: Boolean? = null,
+    val retryAfterCacheRemoval: Boolean? = null,
+    val widevineL3EnforcedFallbackOnDrmErrors: Boolean? = null,
+    val exoProxyableFormatFallback: Boolean? = null,
+    val maxPlayerRetriesWhenNetworkUnavailable: Long? = null,
+    val suppressFatalErrorAfterStop: Boolean? = null,
+    val fallbackToSwDecoderOnFormatDecodeError: Boolean? = null
 )
 
 @Serializable
-data class FluffyAction(
-    val action: String,
-    val removedVideoId: String
+data class TaskCoordinatorConfig(
+    val prefetchCoordinatorBufferedPositionMillisRelease: Long? = null
 )
 
 @Serializable
-data class SubscribeCommand(
-    val clickTrackingParams: String,
-    val subscribeEndpoint: SubscribeEndpoint
-)
-
-@Serializable
-data class SubscribeEndpoint(
-    val channelIds: List<String>,
-    val params: String
-)
-
-@Serializable
-data class UnsubscribeCommand(
-    val clickTrackingParams: String,
-    val unsubscribeEndpoint: SubscribeEndpoint
+data class VariableSpeedConfig(
+    val showVariableSpeedDisabledDialog: Boolean? = null
 )
 
 @Serializable
 data class ResponseContext(
-    val serviceTrackingParams: List<ServiceTrackingParam>,
-    val maxAgeSeconds: Long
+    val visitorData: String? = null,
+    val serviceTrackingParams: List<ServiceTrackingParam>? = null,
+    val maxAgeSeconds: Long? = null
 )
 
 @Serializable
 data class ServiceTrackingParam(
-    val service: String,
-    val params: List<Param>
+    val service: String? = null,
+    val params: List<Param>? = null
+)
+
+@Serializable
+data class Param(
+    val key: String? = null,
+    val value: String? = null
 )
 
 @Serializable
 data class Storyboards(
-    val playerStoryboardSpecRenderer: PlayerStoryboardSpecRenderer
+    val playerStoryboardSpecRenderer: PlayerStoryboardSpecRenderer? = null
 )
 
 @Serializable
 data class PlayerStoryboardSpecRenderer(
-    val spec: String,
-    val recommendedLevel: Long
+    val spec: String? = null,
+    val recommendedLevel: Long? = null
 )
 
 @Serializable
@@ -849,22 +496,22 @@ data class StreamingData(
 
 @Serializable
 data class AdaptiveFormat(
-    val itag: Long,
-    val mimeType: String,
-    val bitrate: Long,
+    val itag: Long? = null,
+    val url: String? = null,
+    val mimeType: String? = null,
+    val bitrate: Int,
     val width: Long? = null,
     val height: Long? = null,
-    val initRange: Range,
-    val indexRange: Range,
-    val lastModified: String,
-    val contentLength: String,
-    val quality: String,
+    val initRange: Range? = null,
+    val indexRange: Range? = null,
+    val lastModified: String? = null,
+    val contentLength: String? = null,
+    val quality: String? = null,
     val fps: Long? = null,
     val qualityLabel: String? = null,
-    val projectionType: ProjectionType,
-    val averageBitrate: Long,
-    val approxDurationMs: String,
-    val signatureCipher: String,
+    val projectionType: ProjectionType? = null,
+    val averageBitrate: Long? = null,
+    val approxDurationMs: String? = null,
     val colorInfo: ColorInfo? = null,
     val highReplication: Boolean? = null,
     val audioQuality: String? = null,
@@ -875,15 +522,15 @@ data class AdaptiveFormat(
 
 @Serializable
 data class ColorInfo(
-    val primaries: String,
-    val transferCharacteristics: String,
-    val matrixCoefficients: String
+    val primaries: String? = null,
+    val transferCharacteristics: String? = null,
+    val matrixCoefficients: String? = null
 )
 
 @Serializable
 data class Range(
-    val start: String,
-    val end: String
+    val start: String? = null,
+    val end: String? = null
 )
 
 @Serializable
@@ -894,38 +541,49 @@ enum class ProjectionType(val value: String) {
 
 @Serializable
 data class Format(
-    val itag: Long,
-    val mimeType: String,
-    val bitrate: Long,
-    val width: Long,
-    val height: Long,
-    val lastModified: String,
-    val quality: String,
-    val fps: Long,
-    val qualityLabel: String,
-    val projectionType: ProjectionType,
-    val audioQuality: String,
-    val approxDurationMs: String,
-    val audioSampleRate: String,
-    val audioChannels: Long,
-    val signatureCipher: String
+    val itag: Long? = null,
+    val url: String? = null,
+    val mimeType: String? = null,
+    val bitrate: Int,
+    val width: Long? = null,
+    val height: Long? = null,
+    val lastModified: String? = null,
+    val quality: String? = null,
+    val fps: Long? = null,
+    val qualityLabel: String? = null,
+    val projectionType: ProjectionType? = null,
+    val audioQuality: String? = null,
+    val approxDurationMs: String? = null,
+    val audioSampleRate: String? = null,
+    val audioChannels: Long? = null
 )
 
 @Serializable
-data class YoutubeFormatResponseVideoDetails(
-    val videoId: String,
-    val title: String,
-    val lengthSeconds: String,
-    val channelId: String,
-    val isOwnerViewing: Boolean,
-    val isCrawlable: Boolean,
-    val thumbnail: MicroformatDataRendererThumbnail,
-    val allowRatings: Boolean,
-    val viewCount: String,
-    val author: String,
-    val isPrivate: Boolean,
-    val isUnpluggedCorpus: Boolean,
-    val musicVideoType: String,
-    val isLiveContent: Boolean
+data class VideoDetails(
+    val videoId: String? = null,
+    val title: String? = null,
+    val lengthSeconds: String? = null,
+    val channelId: String? = null,
+    val isOwnerViewing: Boolean? = null,
+    val isCrawlable: Boolean? = null,
+    val thumbnail: VideoDetailsThumbnail? = null,
+    val allowRatings: Boolean? = null,
+    val viewCount: String? = null,
+    val author: String? = null,
+    val isPrivate: Boolean? = null,
+    val isUnpluggedCorpus: Boolean? = null,
+    val musicVideoType: String? = null,
+    val isLiveContent: Boolean? = null
 )
 
+@Serializable
+data class VideoDetailsThumbnail(
+    val thumbnails: List<ThumbnailElement>? = null
+)
+
+@Serializable
+data class ThumbnailElement(
+    val url: String? = null,
+    val width: Long? = null,
+    val height: Long? = null
+)

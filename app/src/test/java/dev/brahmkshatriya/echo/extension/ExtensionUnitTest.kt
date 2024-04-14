@@ -170,8 +170,11 @@ class ExtensionUnitTest {
     @Test
     fun testTrackGet() = testIn("Testing Track Get") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
-        val track = extension.loadTrack(searchTrack())
-        println(track)
+        val search = searchTrack()
+        measureTimeMillis {
+            val track = extension.loadTrack(search)
+            println(track)
+        }.also { println("time : $it")}
     }
 
     @Test
@@ -211,7 +214,7 @@ class ExtensionUnitTest {
     fun testAlbumGet() = testIn("Testing Album Get") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
 //        val small = extension.loadTrack(searchTrack()).album ?: error("Track has no album")
-        val small = Album("MPREb_zgcvnHHrPoc","")
+        val small = Album("MPREb_zgcvnHHrPoc", "")
         if (extension !is AlbumClient) error("AlbumClient is not implemented")
         val album = extension.loadAlbum(small)
         println(album)

@@ -29,6 +29,7 @@ import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLoadAlbumEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLoadSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistSectionListEndpoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoVideoEndpoint
 import dev.toastbits.ytmkt.endpoint.ArtistWithParamsRow
 import dev.toastbits.ytmkt.endpoint.SongFeedLoadResult
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
@@ -59,6 +60,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
     private val api = YoutubeiApi()
     private val loadSongEndPoint = EchoLoadSongEndPoint(api)
+    private val loadVideoEndpoint = EchoVideoEndpoint(api)
     private val loadAlbumEndPoint = EchoLoadAlbumEndPoint(api)
     private val loadPlaylistSectionListEndpoint = EchoPlaylistSectionListEndpoint(api)
 
@@ -120,14 +122,24 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
             loadSongEndPoint.loadSong(track.id).getOrThrow()
         }
         val video = async {
-            api.VideoFormats.getVideoFormats(track.id).getOrThrow()
+            loadVideoEndpoint.getVideo(track.id).getOrThrow()
+        }.await()
+
+        val expiresAt =
+            System.currentTimeMillis() + (video.streamingData.expiresInSeconds.toLong() * 1000)
+
+        val formats = video.streamingData.formats.mapNotNull {
+            it.url ?: return@mapNotNull null
+            Streamable(it.url, it.bitrate)
+        }
+        val adaptive = video.streamingData.adaptiveFormats.mapNotNull {
+            it.url ?: return@mapNotNull null
+            Streamable(it.url, it.bitrate)
         }
         newTrack.await().toTrack(HIGH).copy(
-            streamables = video.await().mapNotNull {
-                val url = it.url ?: return@mapNotNull null
-                if (!it.mimeType.contains("audio")) return@mapNotNull null
-                Streamable(url, it.bitrate)
-            }
+            streamables = formats + adaptive,
+            expiresAt = expiresAt,
+            plays = video.videoDetails.viewCount?.toIntOrNull()
         )
     }
 
@@ -346,7 +358,11 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         }.getArtists(cookie, auth)
     }
 
-    override suspend fun onSetLoginUser(user: User) {
+    override suspend fun onSetLoginUser(user: User?) {
+        if (user == null) {
+            api.user_auth_state = null
+            return
+        }
         val cookie = user.extras["cookie"]
             ?: throw Exception("No cookie")
         val auth = user.extras["auth"]

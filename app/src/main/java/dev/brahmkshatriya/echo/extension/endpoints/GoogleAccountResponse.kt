@@ -30,6 +30,7 @@ data class GoogleAccountResponse(
             val channelId = it.serviceEndpoint.selectActiveIdentityEndpoint.supportedTokens
                 .find { token -> token.offlineCacheKeyToken != null }
                 ?.offlineCacheKeyToken?.clientCacheKey
+
             Artist(
                 if (channelId != null) "UC$channelId" else "",
                 it.accountName.simpleText,
