@@ -25,7 +25,7 @@ import io.ktor.client.statement.HttpResponse
 import kotlinx.serialization.json.put
 import kotlinx.serialization.Serializable
 
-open class EchoLoadSongEndPoint(override val api: YoutubeiApi): LoadSongEndpoint() {
+open class EchoSongEndPoint(override val api: YoutubeiApi): LoadSongEndpoint() {
     override suspend fun loadSong(
         @Suppress("LocalVariableName") song_id: String
     ): Result<YtmSong> = runCatching {

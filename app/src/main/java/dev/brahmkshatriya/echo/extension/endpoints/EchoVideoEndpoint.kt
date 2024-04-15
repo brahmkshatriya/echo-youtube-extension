@@ -560,16 +560,16 @@ data class Format(
 
 @Serializable
 data class VideoDetails(
-    val videoId: String? = null,
-    val title: String? = null,
-    val lengthSeconds: String? = null,
-    val channelId: String? = null,
+    val videoId: String,
+    val title: String?,
+    val lengthSeconds: String,
+    val channelId: String,
     val isOwnerViewing: Boolean? = null,
     val isCrawlable: Boolean? = null,
     val thumbnail: VideoDetailsThumbnail? = null,
     val allowRatings: Boolean? = null,
     val viewCount: String? = null,
-    val author: String? = null,
+    val author: String,
     val isPrivate: Boolean? = null,
     val isUnpluggedCorpus: Boolean? = null,
     val musicVideoType: String? = null,

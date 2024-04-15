@@ -11,7 +11,7 @@ import io.ktor.client.request.request
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.put
 
-class EchoLoadAlbumEndPoint(override val api: YoutubeiApi) : LoadPlaylistEndpoint() {
+class EchoAlbumEndPoint(override val api: YoutubeiApi) : LoadPlaylistEndpoint() {
     override suspend fun loadPlaylist(
         playlist_id: String,
         continuation: RadioContinuation?,

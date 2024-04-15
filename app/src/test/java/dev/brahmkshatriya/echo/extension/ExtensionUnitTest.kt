@@ -35,7 +35,7 @@ import kotlin.system.measureTimeMillis
 @OptIn(DelicateCoroutinesApi::class)
 @ExperimentalCoroutinesApi
 class ExtensionUnitTest {
-    private val extension: Any = YoutubeExtension()
+    private val extension: ExtensionClient = YoutubeExtension()
     private val searchQuery = "Skrillex"
 
     private val mainThreadSurrogate = newSingleThreadContext("UI thread")
@@ -43,6 +43,7 @@ class ExtensionUnitTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(mainThreadSurrogate)
+        extension.setPreferences(MockSharedPrefs())
     }
 
     @After
@@ -59,7 +60,6 @@ class ExtensionUnitTest {
 
     @Test
     fun testMetadata() = testIn("Testing Extension Metadata") {
-        if (extension !is ExtensionClient) error("ExtensionClient is not implemented")
         val metadata = extension.metadata
         println(metadata)
     }
@@ -152,10 +152,11 @@ class ExtensionUnitTest {
     }
 
 
-    private suspend fun searchTrack(): Track {
+    private suspend fun searchTrack(q: String? = null): Track {
         if (extension !is SearchClient) error("SearchClient is not implemented")
-        println("Searching  : $searchQuery")
-        val items = extension.search(searchQuery, null).getItems(differ)
+        val query = q ?: searchQuery
+        println("Searching  : $query")
+        val items = extension.search(query, null).getItems(differ)
         val track = items.firstNotNullOfOrNull {
             val item = when (it) {
                 is MediaItemsContainer.Item -> it.media
@@ -170,11 +171,11 @@ class ExtensionUnitTest {
     @Test
     fun testTrackGet() = testIn("Testing Track Get") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
-        val search = searchTrack()
+        val search = Track("qeFt3fdsydA","")
         measureTimeMillis {
             val track = extension.loadTrack(search)
             println(track)
-        }.also { println("time : $it")}
+        }.also { println("time : $it") }
     }
 
     @Test

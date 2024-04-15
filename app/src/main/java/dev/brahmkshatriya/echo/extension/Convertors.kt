@@ -59,8 +59,7 @@ fun YtmMediaItem.toEchoMediaItem(
             YtmPlaylist.Type.ALBUM -> EchoMediaItem.Lists.AlbumItem(toAlbum(single, quality))
             else -> EchoMediaItem.Lists.PlaylistItem(toPlaylist(quality))
         }
-
-        is YtmArtist -> EchoMediaItem.Profile.ArtistItem(toArtist(quality))
+        is YtmArtist -> toArtist(quality)?.let { EchoMediaItem.Profile.ArtistItem(it) }
         else -> null
     }
 }
@@ -71,7 +70,7 @@ fun YtmPlaylist.toPlaylist(quality: ThumbnailProvider.Quality): Playlist {
         id = id,
         title = name ?: "Unknown",
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
-        authors = artists?.map { it.toArtist(quality) } ?: emptyList(),
+        authors = artists?.mapNotNull { it.toArtist(quality) } ?: emptyList(),
         tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
         subtitle = description,
         duration = total_duration,
@@ -88,7 +87,7 @@ fun YtmSong.toTrack(
     return Track(
         id = id,
         title = name ?: "Unknown",
-        artists = artists?.map { it.toArtist(quality) } ?: emptyList(),
+        artists = artists?.mapNotNull { it.toArtist(quality) } ?: emptyList(),
         cover = getCover(id, quality),
         album = album,
         duration = duration,
@@ -116,10 +115,10 @@ data class SongThumbnailProvider(val id: String) : ThumbnailProvider {
 
 fun YtmArtist.toArtist(
     quality: ThumbnailProvider.Quality,
-): Artist {
+): Artist? {
     return Artist(
         id = id,
-        name = name ?: "Unknown",
+        name = name ?: return null,
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         description = description,
         followers = subscriber_count,
@@ -134,7 +133,7 @@ fun YtmPlaylist.toAlbum(
         id = id,
         title = name ?: "Unknown",
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
-        artists = artists?.map {
+        artists = artists?.mapNotNull {
             it.toArtist(quality)
         } ?: emptyList(),
         numberOfTracks = item_count ?: if (single) 1 else null,
