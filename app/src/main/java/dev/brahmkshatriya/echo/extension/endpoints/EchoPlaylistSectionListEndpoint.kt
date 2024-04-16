@@ -2,7 +2,6 @@ package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.model.ApiEndpoint
-import dev.toastbits.ytmkt.model.external.RelatedGroup
 import dev.toastbits.ytmkt.model.internal.YoutubeiBrowseResponse
 import io.ktor.client.call.body
 import io.ktor.client.request.request
@@ -24,15 +23,9 @@ open class EchoPlaylistSectionListEndpoint(override val api: YoutubeiApi) : ApiE
         }
 
         val data: YoutubeiBrowseResponse = response.body()
-        val shelf =
-            data.continuationContents?.sectionListContinuation
-        shelf?.contents?.map { group ->
-            RelatedGroup(
-                title = group.title?.text,
-                items = group.getMediaItemsOrNull(hl, api),
-                description = group.description
-            )
-        } ?: emptyList()
+        val contents =
+            data.continuationContents?.sectionListContinuation?.contents
+        contents?.let { EchoSongFeedEndpoint.processRows(it, api, hl) } ?: emptyList()
     }
 
 }

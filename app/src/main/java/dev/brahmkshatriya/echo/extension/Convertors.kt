@@ -12,7 +12,6 @@ import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.english
 import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.singles
 import dev.brahmkshatriya.echo.extension.endpoints.GoogleAccountResponse
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
-import dev.toastbits.ytmkt.model.external.RelatedGroup
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider
 import dev.toastbits.ytmkt.model.external.mediaitem.MediaItemLayout
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
@@ -34,14 +33,14 @@ fun MediaItemLayout.toMediaItemsContainer(
         title = title?.getString(language) ?: "Unknown",
         subtitle = subtitle?.getString(language),
         list = items.mapNotNull { item ->
-            item.toEchoMediaItem(single, quality)
+            item.toEchoMediaItem(api, single, quality)
         },
         more = view_more?.getBrowseParamsData()?.browse_id?.let { id ->
             continuationFlow { _ ->
                 val rows =
                     api.GenericFeedViewMorePage.getGenericFeedViewMorePage(id).getOrThrow()
                 val data = rows.mapNotNull { itemLayout ->
-                    itemLayout.toEchoMediaItem(single, quality)
+                    itemLayout.toEchoMediaItem(api, single, quality)
                 }
                 Page(data, null)
             }
@@ -50,25 +49,29 @@ fun MediaItemLayout.toMediaItemsContainer(
 }
 
 fun YtmMediaItem.toEchoMediaItem(
+    api: YoutubeiApi,
     single: Boolean,
     quality: ThumbnailProvider.Quality
 ): EchoMediaItem? {
+    val channelId = api.user_auth_state?.own_channel_id
     return when (this) {
         is YtmSong -> EchoMediaItem.TrackItem(toTrack(quality))
         is YtmPlaylist -> when (type) {
             YtmPlaylist.Type.ALBUM -> EchoMediaItem.Lists.AlbumItem(toAlbum(single, quality))
-            else -> EchoMediaItem.Lists.PlaylistItem(toPlaylist(quality))
+            else -> EchoMediaItem.Lists.PlaylistItem(toPlaylist(channelId, quality))
         }
+
         is YtmArtist -> toArtist(quality)?.let { EchoMediaItem.Profile.ArtistItem(it) }
         else -> null
     }
 }
 
-fun YtmPlaylist.toPlaylist(quality: ThumbnailProvider.Quality): Playlist {
+fun YtmPlaylist.toPlaylist(channelId: String?, quality: ThumbnailProvider.Quality): Playlist {
     val extras = continuation?.token?.let { mapOf("cont" to it) } ?: emptyMap()
     return Playlist(
         id = id,
         title = name ?: "Unknown",
+        isEditable = owner_id != null && channelId == owner_id,
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         authors = artists?.mapNotNull { it.toArtist(quality) } ?: emptyList(),
         tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
@@ -143,17 +146,6 @@ fun YtmPlaylist.toAlbum(
         duration = total_duration,
         description = description,
         subtitle = null,
-    )
-}
-
-fun RelatedGroup.toMediaItemsContainer(quality: ThumbnailProvider.Quality): MediaItemsContainer.Category? {
-    val items = items ?: return null
-    return MediaItemsContainer.Category(
-        title = title ?: "???",
-        subtitle = description,
-        list = items.mapNotNull { item ->
-            item.toEchoMediaItem(false, quality)
-        }
     )
 }
 

@@ -22,6 +22,7 @@ import dev.toastbits.ytmkt.uistrings.YoutubeUiString
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.put
 
 private val PLAIN_HEADERS: List<String> =
@@ -58,7 +59,7 @@ open class EchoSongFeedEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                     }
                 }
             }
-
+            println(response.bodyAsText())
             return response.body()
         }
 
@@ -89,6 +90,8 @@ open class EchoSongFeedEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
         fun processRows(
             rows: List<YoutubeiShelf>, api: YoutubeiApi, hl: String
         ): List<MediaItemLayout> {
+            println("processing lists : ${rows.size}")
+            println(rows)
             val ret: MutableList<MediaItemLayout> = mutableListOf()
             fun String.createUiString() =
                 YoutubeUiString.Type.HOME_FEED.createFromKey(this, api.data_language)
@@ -130,6 +133,7 @@ open class EchoSongFeedEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                         }
                     add(items = items)
                     continue
+
                 }
 
                 if (browseId?.startsWith("FEmusic_") == true) {
@@ -149,7 +153,8 @@ open class EchoSongFeedEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
 
                 add(mediaItem?.let { MediaItemYoutubePage(it, null) })
             }
-
+            println("done medi tiems")
+            println(ret)
             return ret
         }
     }

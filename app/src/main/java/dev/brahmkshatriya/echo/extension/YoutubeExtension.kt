@@ -4,11 +4,14 @@ import dev.brahmkshatriya.echo.common.clients.AlbumClient
 import dev.brahmkshatriya.echo.common.clients.ArtistClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
+import dev.brahmkshatriya.echo.common.clients.LibraryClient
 import dev.brahmkshatriya.echo.common.clients.LoginClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
+import dev.brahmkshatriya.echo.common.clients.TrackerClient
+import dev.brahmkshatriya.echo.common.exceptions.LoginRequiredException
 import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
@@ -31,7 +34,7 @@ import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.common.settings.SettingSwitch
 import dev.brahmkshatriya.echo.extension.endpoints.EchoAlbumEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistSectionListEndpoint
-import dev.brahmkshatriya.echo.extension.endpoints.EchoRelatedEndPoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoLibraryEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoVideoEndpoint
@@ -50,7 +53,7 @@ import kotlinx.coroutines.coroutineScope
 import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchClient, RadioClient,
-    AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView {
+    AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView, TrackerClient, LibraryClient {
     override val metadata = ExtensionMetadata(
         id = "youtube-music",
         name = "Youtube Music",
@@ -74,7 +77,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private val language = english
 
     private val songFeedEndPoint = EchoSongFeedEndpoint(api)
-    private val relatedEndPoint = EchoRelatedEndPoint(api)
+    private val libraryEndPoint = EchoLibraryEndPoint(api)
     private val songEndPoint = EchoSongEndPoint(api)
     private val videoEndpoint = EchoVideoEndpoint(api)
     private val albumEndPoint = EchoAlbumEndPoint(api)
@@ -85,22 +88,10 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         const val singles = "Singles"
     }
 
-    private var initialized = false
-    private var visitorId: String?
-        get() = preferences.getString("visitor_id", null)
-        set(value) = preferences.edit().putString("visitor_id", value).apply()
-
-
     private var oldGenre: Genre? = null
     private var feed: SongFeedLoadResult? = null
 
     override suspend fun getHomeGenres(): List<Genre> {
-        if (!initialized) {
-            api.visitor_id =
-                visitorId ?: api.GetVisitorId.getVisitorId().getOrThrow().also { visitorId = it }
-            initialized = true
-        }
-
         val result = songFeedEndPoint.getSongFeed().getOrThrow()
         feed = result
         val genres = result.filter_chips?.map {
@@ -165,7 +156,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
     private suspend fun loadRelated(track: Track) = track.run {
         val relatedId = extras["relatedId"] ?: throw Exception("No related id found.")
-        relatedEndPoint.loadRelated(language, relatedId).map {
+        songFeedEndPoint.getSongFeed(browseId = relatedId).getOrThrow().layouts.map {
             it.toMediaItemsContainer(api, singles, thumbnailQuality)
         }
     }
@@ -206,7 +197,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         val search = api.Search.searchMusic(query, genre?.id).getOrThrow()
         val list = search.categories.map { (itemLayout, _) ->
             itemLayout.items.mapNotNull { item ->
-                item.toEchoMediaItem(false, thumbnailQuality)?.toMediaItemsContainer()
+                item.toEchoMediaItem(api, false, thumbnailQuality)?.toMediaItemsContainer()
             }
         }.flatten()
         list
@@ -239,6 +230,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         return Playlist(
             id = result.continuation ?: album.id,
             title = full.title,
+            isEditable = false,
             cover = full.cover,
             authors = listOf(),
             tracks = tracks,
@@ -256,6 +248,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         return Playlist(
             id = result.continuation ?: artist.id,
             title = artist.name,
+            isEditable = false,
             cover = tracks.firstOrNull()?.cover,
             authors = listOf(),
             tracks = tracks,
@@ -274,6 +267,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         return Playlist(
             id = result.continuation ?: track.id,
             title = track.title,
+            isEditable = false,
             cover = track.cover,
             authors = track.artists,
             tracks = tracks,
@@ -284,8 +278,9 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     override suspend fun radio(playlist: Playlist): Playlist {
-        val full =
-            api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow().toPlaylist(thumbnailQuality)
+        val channelId = api.user_auth_state?.own_channel_id
+        val full = api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow()
+            .toPlaylist(channelId, thumbnailQuality)
         val track = full.tracks.lastOrNull() ?: throw Exception("No tracks")
         return radio(track)
     }
@@ -306,7 +301,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
             MediaItemsContainer.Category(title = it.title?.getString(language) ?: "Unknown",
                 subtitle = it.subtitle?.getString(language),
                 list = it.items?.mapNotNull { item ->
-                    item.toEchoMediaItem(single, thumbnailQuality)
+                    item.toEchoMediaItem(api, single, thumbnailQuality)
                 } ?: emptyList(),
                 more = it.view_more?.getBrowseParamsData()?.let { param ->
                     continuationFlow {
@@ -334,18 +329,19 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
     private fun ArtistWithParamsRow.toMediaItems(): List<EchoMediaItem> {
         return items.mapNotNull { item ->
-            item.toEchoMediaItem(title == singles, thumbnailQuality)
+            item.toEchoMediaItem(api, title == singles, thumbnailQuality)
         }
     }
 
-    override fun getMediaItems(playlist: Playlist) = PagedData.Single<MediaItemsContainer> {
+    override fun getMediaItems(playlist: Playlist) = PagedData.Single {
         val cont = playlist.extras["cont"] ?: return@Single emptyList()
         val continuation = playlistSectionListEndpoint.loadFromPlaylist(cont).getOrThrow()
-        continuation.mapNotNull { it.toMediaItemsContainer(thumbnailQuality) }
+        continuation.map { it.toMediaItemsContainer(api, language, thumbnailQuality) }
     }
 
     override suspend fun loadPlaylist(playlist: Playlist): Playlist {
-        return api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow().toPlaylist(HIGH)
+        val channelId = api.user_auth_state?.own_channel_id
+        return api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow().toPlaylist(channelId, HIGH)
     }
 
     override val loginWebViewInitialUrl =
@@ -377,9 +373,16 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         }.getArtists(cookie, auth)
     }
 
+
+    private var visitorId: String?
+        get() = preferences.getString("visitor_id", null)
+        set(value) = preferences.edit().putString("visitor_id", value).apply()
+
     override suspend fun onSetLoginUser(user: User?) {
         if (user == null) {
             api.user_auth_state = null
+            api.visitor_id =
+                visitorId ?: api.GetVisitorId.getVisitorId().getOrThrow().also { visitorId = it }
             return
         }
         val cookie = user.extras["cookie"] ?: throw Exception("No cookie")
@@ -394,5 +397,49 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         api.user_auth_state = authenticationState
     }
 
+    override suspend fun onMarkAsPlayed(clientId: String, track: Track) {
+        api.user_auth_state?.MarkSongAsWatched?.markSongAsWatched(track.id)?.getOrThrow()
+    }
+
+    override suspend fun onStartedPlaying(clientId: String, track: Track) {}
+
+
+    override suspend fun getLibraryGenres() = listOf(
+        Genre("FEmusic_library_landing", "All"),
+        Genre("FEmusic_liked_playlists", "Playlists"),
+        Genre("FEmusic_liked_videos", "Songs"),
+        Genre("FEmusic_liked_albums", "Albums"),
+        Genre("FEmusic_library_corpus_track_artists", "Artists")
+    )
+
+    override fun getLibraryFeed(genre: Genre?): PagedData<MediaItemsContainer> = continuationFlow {
+        if (api.user_auth_state == null) throw LoginRequiredException.from(this)
+        val browseId = genre?.id ?: "FEmusic_library_landing"
+        val (result, ctoken) = libraryEndPoint.loadLibraryFeed(browseId, it)
+        val data = result.mapNotNull { playlist ->
+            playlist.toEchoMediaItem(api, false, thumbnailQuality)?.toMediaItemsContainer()
+        }
+        Page(data, ctoken)
+    }
+
+    override suspend fun addTracksToPlaylist(playlist: Playlist, tracks: List<Track>) {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun createPlaylist(name: String, description: String?): Playlist {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun deletePlaylist(playlist: Playlist) {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun likeTrack(track: Track, liked: Boolean) {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun removeTrackFromPlaylist(playlist: Playlist, tracks: List<Track>) {
+        TODO("Not yet implemented")
+    }
 
 }
