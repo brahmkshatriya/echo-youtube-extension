@@ -68,6 +68,12 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
             "high_quality",
             "Use high quality thumbnails, will cause more data usage.",
             false
+        ),
+        SettingSwitch(
+            "Use MP4 Format",
+            "use_mp4_format",
+            "Use MP4 formats for audio streams, turning it on may cause source errors.",
+            false
         )
     )
 
@@ -121,6 +127,9 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override suspend fun getStreamableVideo(streamable: Streamable) =
         StreamableVideo(Request(streamable.id), looping = false, crop = false)
 
+    private val useMp4Format
+        get() = preferences.getBoolean("use_mp4_format", false)
+
     override suspend fun loadTrack(track: Track) = coroutineScope {
         val deferred = async {
             songEndPoint.loadSong(track.id).getOrThrow()
@@ -130,10 +139,10 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         val expiresAt =
             System.currentTimeMillis() + (video.streamingData.expiresInSeconds.toLong() * 1000)
 
-        val formats = video.streamingData.formats.mapNotNull {
+        val formats = if (useMp4Format) video.streamingData.formats.mapNotNull {
             it.url ?: return@mapNotNull null
             Streamable(it.url, it.bitrate)
-        }
+        } else listOf()
         val adaptiveAudio = video.streamingData.adaptiveFormats.mapNotNull {
             if (!it.mimeType.contains("audio")) return@mapNotNull null
             Streamable(it.url, it.bitrate)
@@ -398,7 +407,9 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     override suspend fun onMarkAsPlayed(clientId: String, track: Track) {
+        println("marking as played : $track")
         api.user_auth_state?.MarkSongAsWatched?.markSongAsWatched(track.id)?.getOrThrow()
+        println("marked as played")
     }
 
     override suspend fun onStartedPlaying(clientId: String, track: Track) {}
@@ -406,20 +417,25 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
     override suspend fun getLibraryGenres() = listOf(
         Genre("FEmusic_library_landing", "All"),
+        Genre("FEmusic_history", "History"),
         Genre("FEmusic_liked_playlists", "Playlists"),
         Genre("FEmusic_liked_videos", "Songs"),
         Genre("FEmusic_liked_albums", "Albums"),
         Genre("FEmusic_library_corpus_track_artists", "Artists")
     )
 
-    override fun getLibraryFeed(genre: Genre?): PagedData<MediaItemsContainer> = continuationFlow {
+    suspend fun getFeed(genre: Genre?, it: String?) = run {
         if (api.user_auth_state == null) throw LoginRequiredException.from(this)
         val browseId = genre?.id ?: "FEmusic_library_landing"
         val (result, ctoken) = libraryEndPoint.loadLibraryFeed(browseId, it)
         val data = result.mapNotNull { playlist ->
             playlist.toEchoMediaItem(api, false, thumbnailQuality)?.toMediaItemsContainer()
         }
-        Page(data, ctoken)
+        Page<MediaItemsContainer>(data, ctoken)
+    }
+
+    override fun getLibraryFeed(genre: Genre?) = continuationFlow {
+        getFeed(genre, it)
     }
 
     override suspend fun addTracksToPlaylist(playlist: Playlist, tracks: List<Track>) {

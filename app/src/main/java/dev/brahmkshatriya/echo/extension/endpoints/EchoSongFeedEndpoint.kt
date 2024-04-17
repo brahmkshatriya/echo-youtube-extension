@@ -13,7 +13,6 @@ import dev.toastbits.ytmkt.model.external.mediaitem.YtmMediaItem
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
 import dev.toastbits.ytmkt.model.external.mediaitem.copyWithName
 import dev.toastbits.ytmkt.model.internal.BrowseEndpoint
-import dev.toastbits.ytmkt.model.internal.YoutubeiBrowseResponse
 import dev.toastbits.ytmkt.model.internal.YoutubeiHeaderContainer
 import dev.toastbits.ytmkt.model.internal.YoutubeiShelf
 import dev.toastbits.ytmkt.uistrings.RawUiString

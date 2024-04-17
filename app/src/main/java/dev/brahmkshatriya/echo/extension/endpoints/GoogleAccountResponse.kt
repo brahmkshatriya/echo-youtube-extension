@@ -20,12 +20,12 @@ data class GoogleAccountResponse(
 
     fun getArtists(cookie: String, auth: String): List<Artist> {
         return getAccountList().mapNotNull {
-            if (it.isDisabled) return@mapNotNull null
+            if (it.isDisabled == true) return@mapNotNull null
             val cover =
-                it.accountPhoto.thumbnails.firstOrNull()?.url?.toImageHolder()
+                it.accountPhoto?.thumbnails?.firstOrNull()?.url?.toImageHolder()
             val signInUrl =
-                it.serviceEndpoint.selectActiveIdentityEndpoint.supportedTokens
-                    .find { token -> token.accountSigninToken != null }
+                it.serviceEndpoint?.selectActiveIdentityEndpoint?.supportedTokens
+                    ?.find { token -> token.accountSigninToken != null }
                     ?.accountSigninToken?.signinUrl ?: return@mapNotNull null
             val channelId = it.serviceEndpoint.selectActiveIdentityEndpoint.supportedTokens
                 .find { token -> token.offlineCacheKeyToken != null }
@@ -36,16 +36,15 @@ data class GoogleAccountResponse(
                 it.accountName.simpleText,
                 cover,
                 mapOf("auth" to auth, "cookie" to cookie, "signInUrl" to signInUrl),
-                it.accountByline.simpleText
+                it.accountByline?.simpleText
             )
         }
     }
 
-
     @Serializable
     data class Data(
-        val responseContext: ResponseContext,
-        val selectText: SelectText,
+        val responseContext: ResponseContext? = null,
+        val selectText: SelectText? = null,
         val actions: List<Action>
     )
 
@@ -66,67 +65,67 @@ data class GoogleAccountResponse(
 
     @Serializable
     data class MultiPageMenuRenderer(
-        val header: MultiPageMenuRendererHeader,
+        val header: MultiPageMenuRendererHeader? = null,
         val sections: List<Section>,
-        val footer: Footer,
-        val style: String
+        val footer: Footer? = null,
+        val style: String? = null
     )
 
     @Serializable
     data class Footer(
-        val multiPageMenuSectionRenderer: MultiPageMenuSectionRenderer
+        val multiPageMenuSectionRenderer: MultiPageMenuSectionRenderer? = null
     )
 
     @Serializable
     data class MultiPageMenuSectionRenderer(
-        val items: List<Item>
+        val items: List<Item>? = null
     )
 
     @Serializable
     data class Item(
-        val compactLinkRenderer: ItemCompactLinkRenderer
+        val compactLinkRenderer: ItemCompactLinkRenderer? = null
     )
 
     @Serializable
     data class ItemCompactLinkRenderer(
-        val icon: Icon,
-        val title: SelectText,
-        val navigationEndpoint: PurpleNavigationEndpoint,
-        val style: String
+        val icon: Icon? = null,
+        val title: SelectText? = null,
+        val navigationEndpoint: PurpleNavigationEndpoint? = null,
+        val style: String? = null
     )
 
     @Serializable
     data class Icon(
-        val iconType: String
+        val iconType: String? = null
     )
 
     @Serializable
     data class PurpleNavigationEndpoint(
-        val commandMetadata: CommandMetadata,
+        val commandMetadata: CommandMetadata? = null,
         val urlEndpoint: URLEndpoint? = null,
         val signOutEndpoint: SignOutEndpoint? = null
     )
 
     @Serializable
     data class CommandMetadata(
-        val webCommandMetadata: WebCommandMetadata
+        val webCommandMetadata: WebCommandMetadata? = null
     )
 
     @Serializable
     data class WebCommandMetadata(
-        val url: String,
-        val webPageType: String,
-        val rootVe: Long
+        val url: String? = null,
+        val webPageType: String? = null,
+        val rootVe: Long? = null
     )
 
     @Serializable
     data class SignOutEndpoint(
-        val hack: Boolean
+        val hack: Boolean? = null
     )
 
     @Serializable
     data class URLEndpoint(
-        val url: String
+        val url: String? = null
     )
 
     @Serializable
@@ -136,38 +135,38 @@ data class GoogleAccountResponse(
 
     @Serializable
     data class MultiPageMenuRendererHeader(
-        val simpleMenuHeaderRenderer: SimpleMenuHeaderRenderer
+        val simpleMenuHeaderRenderer: SimpleMenuHeaderRenderer? = null
     )
 
     @Serializable
     data class SimpleMenuHeaderRenderer(
-        val backButton: BackButton,
-        val title: SelectText
+        val backButton: BackButton? = null,
+        val title: SelectText? = null
     )
 
     @Serializable
     data class BackButton(
-        val buttonRenderer: ButtonRenderer
+        val buttonRenderer: ButtonRenderer? = null
     )
 
     @Serializable
     data class ButtonRenderer(
-        val style: String,
-        val size: String,
-        val isDisabled: Boolean,
-        val icon: Icon,
-        val accessibility: Accessibility,
-        val accessibilityData: AccessibilityData
+        val style: String? = null,
+        val size: String? = null,
+        val isDisabled: Boolean? = null,
+        val icon: Icon? = null,
+        val accessibility: Accessibility? = null,
+        val accessibilityData: AccessibilityData? = null
     )
 
     @Serializable
     data class Accessibility(
-        val label: String
+        val label: String? = null
     )
 
     @Serializable
     data class AccessibilityData(
-        val accessibilityData: Accessibility
+        val accessibilityData: Accessibility? = null
     )
 
     @Serializable
@@ -178,7 +177,7 @@ data class GoogleAccountResponse(
     @Serializable
     data class AccountSectionListRenderer(
         val contents: List<AccountSectionListRendererContent>,
-        val header: AccountSectionListRendererHeader
+        val header: AccountSectionListRendererHeader? = null
     )
 
     @Serializable
@@ -200,45 +199,45 @@ data class GoogleAccountResponse(
     @Serializable
     data class AccountItem(
         val accountName: SelectText,
-        val accountPhoto: AccountPhoto,
-        val isSelected: Boolean,
-        val isDisabled: Boolean,
+        val accountPhoto: AccountPhoto? = null,
+        val isSelected: Boolean? = null,
+        val isDisabled: Boolean? = null,
         val mobileBanner: AccountPhoto? = null,
         val hasChannel: Boolean? = null,
-        val serviceEndpoint: ServiceEndpoint,
-        val accountByline: SelectText,
+        val serviceEndpoint: ServiceEndpoint? = null,
+        val accountByline: SelectText? = null,
         val unlimitedStatus: List<SelectText>? = null,
-        val channelHandle: SelectText,
+        val channelHandle: SelectText? = null,
         val channelDelegationRole: String? = null
     )
 
     @Serializable
     data class AccountPhoto(
-        val thumbnails: List<Thumbnail>
+        val thumbnails: List<Thumbnail>? = null
     )
 
     @Serializable
     data class Thumbnail(
-        val url: String,
-        val width: Long,
-        val height: Long
+        val url: String? = null,
+        val width: Long? = null,
+        val height: Long? = null
     )
 
     @Serializable
     data class ServiceEndpoint(
-        val selectActiveIdentityEndpoint: SelectActiveIdentityEndpoint
+        val selectActiveIdentityEndpoint: SelectActiveIdentityEndpoint? = null
     )
 
     @Serializable
     data class SelectActiveIdentityEndpoint(
-        val supportedTokens: List<SupportedToken>,
+        val supportedTokens: List<SupportedToken>? = null,
         val nextNavigationEndpoint: NextNavigationEndpoint? = null
     )
 
     @Serializable
     data class NextNavigationEndpoint(
-        val commandMetadata: CommandMetadata,
-        val urlEndpoint: URLEndpoint
+        val commandMetadata: CommandMetadata? = null,
+        val urlEndpoint: URLEndpoint? = null
     )
 
     @Serializable
@@ -251,82 +250,83 @@ data class GoogleAccountResponse(
 
     @Serializable
     data class AccountSigninToken(
-        val signinUrl: String
+        val signinUrl: String? = null
     )
 
     @Serializable
     data class AccountStateToken(
-        val hasChannel: Boolean,
-        val isMerged: Boolean,
-        val obfuscatedGaiaId: String
+        val hasChannel: Boolean? = null,
+        val isMerged: Boolean? = null,
+        val obfuscatedGaiaId: String? = null
     )
 
     @Serializable
     data class DatasyncIdToken(
-        val datasyncIdToken: String
+        val datasyncIdToken: String? = null
     )
 
     @Serializable
     data class OfflineCacheKeyToken(
-        val clientCacheKey: String
+        val clientCacheKey: String? = null
     )
 
     @Serializable
     data class ContentCompactLinkRenderer(
-        val title: SelectText,
-        val navigationEndpoint: FluffyNavigationEndpoint
+        val title: SelectText? = null,
+        val navigationEndpoint: FluffyNavigationEndpoint? = null
     )
 
     @Serializable
     data class FluffyNavigationEndpoint(
-        val commandMetadata: CommandMetadata,
-        val signalNavigationEndpoint: SignalNavigationEndpoint
+        val commandMetadata: CommandMetadata? = null,
+        val signalNavigationEndpoint: SignalNavigationEndpoint? = null
     )
 
     @Serializable
     data class SignalNavigationEndpoint(
-        val signal: String
+        val signal: String? = null
     )
 
     @Serializable
     data class AccountSectionListRendererHeader(
-        val googleAccountHeaderRenderer: GoogleAccountHeaderRenderer
+        val googleAccountHeaderRenderer: GoogleAccountHeaderRenderer? = null
     )
 
     @Serializable
     data class GoogleAccountHeaderRenderer(
-        val name: SelectText,
-        val email: SelectText
+        val name: SelectText? = null,
+        val email: SelectText? = null
     )
 
     @Serializable
     data class ResponseContext(
-        val serviceTrackingParams: List<ServiceTrackingParam>,
-        val mainAppWebResponseContext: MainAppWebResponseContext,
-        val webResponseContextExtensionData: WebResponseContextExtensionData
+        val serviceTrackingParams: List<ServiceTrackingParam>? = null,
+        val mainAppWebResponseContext: MainAppWebResponseContext? = null,
+        val webResponseContextExtensionData: WebResponseContextExtensionData? = null
     )
 
     @Serializable
     data class MainAppWebResponseContext(
-        val datasyncId: String,
-        val loggedOut: Boolean,
-        val trackingParam: String
+        val datasyncId: String? = null,
+        val loggedOut: Boolean? = null,
+        val trackingParam: String? = null
     )
 
     @Serializable
     data class ServiceTrackingParam(
-        val service: String,
-        val params: List<Param>
+        val service: String? = null,
+        val params: List<Param>? = null
     )
 
     @Serializable
     data class Param(
-        val key: String,
-        val value: String
+        val key: String? = null,
+        val value: String? = null
     )
 
     @Serializable
     data class WebResponseContextExtensionData(
-        val hasDecorated: Boolean
+        val hasDecorated: Boolean? = null
     )
+
 }

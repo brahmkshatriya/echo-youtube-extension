@@ -2,7 +2,6 @@ package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.model.ApiEndpoint
-import dev.toastbits.ytmkt.model.internal.YoutubeiBrowseResponse
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
