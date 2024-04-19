@@ -35,13 +35,16 @@ import dev.brahmkshatriya.echo.common.settings.SettingSwitch
 import dev.brahmkshatriya.echo.extension.endpoints.EchoAlbumEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistSectionListEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLibraryEndPoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoLyricsEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoVideoEndpoint
+import dev.brahmkshatriya.echo.extension.endpoints.TimedLyricsDatum
 import dev.toastbits.ytmkt.endpoint.ArtistWithParamsRow
 import dev.toastbits.ytmkt.endpoint.SongFeedLoadResult
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiAuthenticationState
+import dev.toastbits.ytmkt.model.external.SongLikedStatus
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.HIGH
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.LOW
 import io.ktor.client.network.sockets.ConnectTimeoutException
@@ -80,7 +83,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private val api = YoutubeiApi()
     private val thumbnailQuality
         get() = if (preferences.getBoolean("high_quality", false)) HIGH else LOW
-    private val language = english
+    private val language = ENGLISH
 
     private val songFeedEndPoint = EchoSongFeedEndpoint(api)
     private val libraryEndPoint = EchoLibraryEndPoint(api)
@@ -88,10 +91,11 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private val videoEndpoint = EchoVideoEndpoint(api)
     private val albumEndPoint = EchoAlbumEndPoint(api)
     private val playlistSectionListEndpoint = EchoPlaylistSectionListEndpoint(api)
+    private val lyricsEndPoint = EchoLyricsEndPoint(api)
 
     companion object {
-        const val english = "en-GB"
-        const val singles = "Singles"
+        const val ENGLISH = "en-GB"
+        const val SINGLES = "Singles"
     }
 
     private var oldGenre: Genre? = null
@@ -116,7 +120,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         ).getOrThrow()
 
         val data = result.layouts.map { itemLayout ->
-            itemLayout.toMediaItemsContainer(api, singles, thumbnailQuality)
+            itemLayout.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
         }
         oldGenre = genre
         Page(data, result.ctoken)
@@ -166,7 +170,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private suspend fun loadRelated(track: Track) = track.run {
         val relatedId = extras["relatedId"] ?: throw Exception("No related id found.")
         songFeedEndPoint.getSongFeed(browseId = relatedId).getOrThrow().layouts.map {
-            it.toMediaItemsContainer(api, singles, thumbnailQuality)
+            it.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
         }
     }
 
@@ -216,7 +220,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         query ?: return emptyList()
         val search = api.Search.searchMusic(query, null).getOrThrow()
         oldSearch = query to search.categories.map { (itemLayout, _) ->
-            itemLayout.toMediaItemsContainer(api, singles, thumbnailQuality)
+            itemLayout.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
         }
         val genres = search.categories.mapNotNull { (item, filter) ->
             filter?.let {
@@ -305,8 +309,8 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private suspend fun getArtistMediaItems(artist: Artist): List<MediaItemsContainer.Category> {
         val result = api.LoadArtist.loadArtist(artist.id).getOrThrow()
         val list = result.layouts?.map {
-            val title = it.title?.getString(english)
-            val single = title == singles
+            val title = it.title?.getString(ENGLISH)
+            val single = title == SINGLES
             MediaItemsContainer.Category(title = it.title?.getString(language) ?: "Unknown",
                 subtitle = it.subtitle?.getString(language),
                 list = it.items?.mapNotNull { item ->
@@ -338,7 +342,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
     private fun ArtistWithParamsRow.toMediaItems(): List<EchoMediaItem> {
         return items.mapNotNull { item ->
-            item.toEchoMediaItem(api, title == singles, thumbnailQuality)
+            item.toEchoMediaItem(api, title == SINGLES, thumbnailQuality)
         }
     }
 
@@ -450,12 +454,19 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         TODO("Not yet implemented")
     }
 
-    override suspend fun likeTrack(track: Track, liked: Boolean) {
-        TODO("Not yet implemented")
+    override suspend fun likeTrack(track: Track, liked: Boolean): Boolean {
+        val likeStatus = if (liked) SongLikedStatus.LIKED else SongLikedStatus.NEUTRAL
+        val auth = api.user_auth_state
+            ?: throw LoginRequiredException.from(this)
+        auth.SetSongLiked.setSongLiked(track.id, likeStatus).getOrThrow()
+        return liked
     }
 
     override suspend fun removeTrackFromPlaylist(playlist: Playlist, tracks: List<Track>) {
         TODO("Not yet implemented")
     }
 
+    suspend fun getLyrics(id: String): List<TimedLyricsDatum>? {
+        return lyricsEndPoint.getLyrics(id)
+    }
 }

@@ -8,8 +8,8 @@ import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.Track
-import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.english
-import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.singles
+import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.ENGLISH
+import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.SINGLES
 import dev.brahmkshatriya.echo.extension.endpoints.GoogleAccountResponse
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider
@@ -27,8 +27,8 @@ fun MediaItemLayout.toMediaItemsContainer(
     language: String,
     quality: ThumbnailProvider.Quality
 ): MediaItemsContainer {
-    val s = title?.getString(english)
-    val single = s == singles
+    val s = title?.getString(ENGLISH)
+    val single = s == SINGLES
     return MediaItemsContainer.Category(
         title = title?.getString(language) ?: "Unknown",
         subtitle = subtitle?.getString(language),

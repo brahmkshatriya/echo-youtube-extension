@@ -24,7 +24,7 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.put
 
-private val PLAIN_HEADERS: List<String> =
+val PLAIN_HEADERS: List<String> =
     listOf("accept-language", "user-agent", "accept-encoding", "content-encoding", "origin")
 
 open class EchoSongFeedEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
