@@ -12,8 +12,7 @@ class EchoLyricsEndPoint(override val api: YoutubeiApi) : ApiEndpoint() {
     suspend fun getLyrics(id: String): List<TimedLyricsDatum>? {
         val response = api.client.request {
             endpointPath("browse")
-            addApiHeadersWithAuthenticated()
-            addApiHeadersWithoutAuthentication(PLAIN_HEADERS)
+            addApiHeadersWithoutAuthentication()
             postWithBody(context) {
                 put("browseId", id)
             }

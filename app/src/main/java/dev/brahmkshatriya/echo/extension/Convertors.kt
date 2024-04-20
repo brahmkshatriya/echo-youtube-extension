@@ -67,7 +67,9 @@ fun YtmMediaItem.toEchoMediaItem(
 }
 
 fun YtmPlaylist.toPlaylist(channelId: String?, quality: ThumbnailProvider.Quality): Playlist {
-    val extras = continuation?.token?.let { mapOf("cont" to it) } ?: emptyMap()
+    val extras = mutableMapOf<String, String>()
+    continuation?.token?.let { extras["cont"] = it }
+    item_set_ids?.let { extras["item_set_ids"] = it.joinToString(",") }
     return Playlist(
         id = id,
         title = name ?: "Unknown",

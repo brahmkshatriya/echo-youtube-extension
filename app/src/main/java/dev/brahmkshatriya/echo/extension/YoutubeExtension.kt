@@ -44,6 +44,7 @@ import dev.toastbits.ytmkt.endpoint.ArtistWithParamsRow
 import dev.toastbits.ytmkt.endpoint.SongFeedLoadResult
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiAuthenticationState
+import dev.toastbits.ytmkt.model.external.PlaylistEditor
 import dev.toastbits.ytmkt.model.external.SongLikedStatus
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.HIGH
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.LOW
@@ -71,8 +72,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
             "high_quality",
             "Use high quality thumbnails, will cause more data usage.",
             false
-        ),
-        SettingSwitch(
+        ), SettingSwitch(
             "Use MP4 Format",
             "use_mp4_format",
             "Use MP4 formats for audio streams, turning it on may cause source errors.",
@@ -442,16 +442,20 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         getFeed(genre, it)
     }
 
-    override suspend fun addTracksToPlaylist(playlist: Playlist, tracks: List<Track>) {
-        TODO("Not yet implemented")
-    }
 
     override suspend fun createPlaylist(name: String, description: String?): Playlist {
-        TODO("Not yet implemented")
+        val auth = api.user_auth_state
+            ?: throw LoginRequiredException.from(this)
+        val playlistId =
+            auth.CreateAccountPlaylist.createAccountPlaylist(name, description ?: "").getOrThrow()
+        val playlist = api.LoadPlaylist.loadPlaylist(playlistId).getOrThrow()
+        return playlist.toPlaylist(auth.own_channel_id, HIGH)
     }
 
     override suspend fun deletePlaylist(playlist: Playlist) {
-        TODO("Not yet implemented")
+        val auth = api.user_auth_state
+            ?: throw LoginRequiredException.from(this)
+        auth.DeleteAccountPlaylist.deleteAccountPlaylist(playlist.id).isSuccess
     }
 
     override suspend fun likeTrack(track: Track, liked: Boolean): Boolean {
@@ -462,8 +466,43 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         return liked
     }
 
+    private suspend fun performAction(
+        playlist: Playlist,
+        action: List<PlaylistEditor.Action>
+    ): Boolean {
+        val auth = api.user_auth_state
+            ?: throw LoginRequiredException.from(this)
+        val sets = playlist.extras["item_set_ids"]?.split(",")
+            ?: throw Exception("No item set ids found")
+        val editor =
+            auth.AccountPlaylistEditor.getEditor(playlist.id, playlist.tracks.map { it.id }, sets)
+        val res = editor.performAndCommitActions(action)
+        return res.isSuccess
+    }
+
     override suspend fun removeTrackFromPlaylist(playlist: Playlist, tracks: List<Track>) {
-        TODO("Not yet implemented")
+        performAction(
+            playlist,
+            tracks.map { PlaylistEditor.Action.Remove(playlist.tracks.indexOfFirst { it1 -> it1.id == it.id }) }
+        )
+    }
+
+    suspend fun removeTracksFromPlaylist(playlist: Playlist, trackIndexes: List<Int>) {
+        performAction(
+            playlist,
+            trackIndexes.map { PlaylistEditor.Action.Remove(it) }
+        )
+    }
+
+    override suspend fun addTracksToPlaylist(playlist: Playlist, tracks: List<Track>) {
+        performAction(playlist, tracks.map { PlaylistEditor.Action.Add(it.id, null) })
+    }
+
+    suspend fun moveTrackInPlaylist(playlist: Playlist, from: Int, to: Int) {
+        performAction(
+            playlist,
+            listOf(PlaylistEditor.Action.Move(from, to))
+        )
     }
 
     suspend fun getLyrics(id: String): List<TimedLyricsDatum>? {

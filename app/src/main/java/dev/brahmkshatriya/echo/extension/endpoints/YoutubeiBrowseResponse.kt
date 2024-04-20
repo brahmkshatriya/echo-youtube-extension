@@ -21,7 +21,9 @@ data class YoutubeiBrowseResponse(
 
     fun getShelves(hasContinuation: Boolean): List<YoutubeiShelf> {
         return if (hasContinuation) continuationContents?.sectionListContinuation?.contents ?: emptyList()
-        else contents?.singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents ?: emptyList()
+        else contents?.singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents
+            ?: contents?.twoColumnBrowseResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents
+            ?: contents?.sectionListRenderer?.contents ?: emptyList()
     }
 
     fun getHeaderChips(dataLanguage: String): List<SongFeedFilterChip>? =
@@ -35,7 +37,8 @@ data class YoutubeiBrowseResponse(
     @Serializable
     data class Contents(
         val singleColumnBrowseResultsRenderer: SingleColumnBrowseResultsRenderer?,
-        val twoColumnBrowseResultsRenderer: TwoColumnBrowseResultsRenderer?
+        val twoColumnBrowseResultsRenderer: TwoColumnBrowseResultsRenderer?,
+        val sectionListRenderer: SectionListRenderer?
     )
     @Serializable
     data class SingleColumnBrowseResultsRenderer(val tabs: List<Tab>)
