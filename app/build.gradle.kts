@@ -50,7 +50,7 @@ android {
 }
 
 dependencies {
-    compileOnly("com.github.brahmkshatriya:echo:96632a4220")
+    compileOnly("com.github.brahmkshatriya:echo:ef7a0d7ea6")
     implementation("com.github.toasterofbread.ytm-kt:library-jvm:ba4c927fc5")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
@@ -64,5 +64,5 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1-Beta")
     testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")
-    testImplementation("com.github.brahmkshatriya:echo:96632a4220")
+    testImplementation("com.github.brahmkshatriya:echo:ef7a0d7ea6")
 }
