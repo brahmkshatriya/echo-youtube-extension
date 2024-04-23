@@ -6,8 +6,6 @@ import androidx.paging.PagingData
 import dev.brahmkshatriya.echo.common.clients.AlbumClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
-import dev.brahmkshatriya.echo.common.clients.LibraryClient
-import dev.brahmkshatriya.echo.common.clients.LoginClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
@@ -17,7 +15,6 @@ import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.Track
-import dev.brahmkshatriya.echo.common.models.User
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -184,7 +181,7 @@ class ExtensionUnitTest {
     @Test
     fun testTrackStream() = testIn("Testing Track Stream") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
-        val search = searchTrack()
+        val search = Track("wimxNdDBII4","")
         measureTimeMillis {
             val track = extension.loadTrack(search)
             val streamable = track.audioStreamables.firstOrNull()

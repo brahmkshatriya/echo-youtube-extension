@@ -143,10 +143,10 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         val expiresAt =
             System.currentTimeMillis() + (video.streamingData.expiresInSeconds.toLong() * 1000)
 
-        val formats = if (useMp4Format) video.streamingData.formats.mapNotNull {
+        val formats = if (useMp4Format) video.streamingData.formats?.mapNotNull {
             it.url ?: return@mapNotNull null
             Streamable(it.url, it.bitrate)
-        } else listOf()
+        } ?: listOf() else listOf()
         val adaptiveAudio = video.streamingData.adaptiveFormats.mapNotNull {
             if (!it.mimeType.contains("audio")) return@mapNotNull null
             Streamable(it.url, it.bitrate)

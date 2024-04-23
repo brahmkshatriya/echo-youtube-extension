@@ -2,7 +2,6 @@
 
 package dev.brahmkshatriya.echo.extension.endpoints
 
-import dev.toastbits.ytmkt.impl.youtubei.YoutubeiRequestData
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import dev.toastbits.ytmkt.model.YtmApi
 import io.ktor.client.call.body
@@ -11,6 +10,7 @@ import io.ktor.client.statement.HttpResponse
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 class EchoVideoEndpoint(override val api: YtmApi) : ApiEndpoint() {
@@ -20,12 +20,21 @@ class EchoVideoEndpoint(override val api: YtmApi) : ApiEndpoint() {
         val response: HttpResponse = api.client.request {
             endpointPath("player")
             addApiHeadersWithAuthenticated()
-            postWithBody(YoutubeiRequestData.getYtmContextAndroidMusic(YoutubeiRequestData.default_hl)) {
+            postWithBody(context) {
                 put("videoId", id)
                 put("playlistId", null)
             }
         }
         return@runCatching response.body<YoutubeFormatResponse>()
+    }
+
+    private val context = buildJsonObject {
+        put("context", buildJsonObject {
+            put("client", buildJsonObject {
+                put("clientName", "26")
+                put("clientVersion", "6.48.2")
+            })
+        })
     }
 }
 
@@ -490,7 +499,7 @@ data class PlayerStoryboardSpecRenderer(
 @Serializable
 data class StreamingData(
     val expiresInSeconds: String,
-    val formats: List<Format>,
+    val formats: List<Format>?,
     val adaptiveFormats: List<AdaptiveFormat>
 )
 
