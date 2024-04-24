@@ -9,6 +9,7 @@ import dev.brahmkshatriya.echo.common.clients.LoginClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
+import dev.brahmkshatriya.echo.common.clients.ShareClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.clients.TrackerClient
 import dev.brahmkshatriya.echo.common.exceptions.LoginRequiredException
@@ -57,7 +58,8 @@ import kotlinx.coroutines.coroutineScope
 import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchClient, RadioClient,
-    AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView, TrackerClient, LibraryClient {
+    AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView, TrackerClient, LibraryClient,
+    ShareClient {
     override val metadata = ExtensionMetadata(
         id = "youtube-music",
         name = "Youtube Music",
@@ -504,4 +506,19 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     suspend fun getLyrics(id: String): List<TimedLyricsDatum>? {
         return lyricsEndPoint.getLyrics(id)
     }
+
+    override suspend fun onShare(album: Album) =
+        "https://music.youtube.com/playlist?list=${album.id}"
+
+    override suspend fun onShare(artist: Artist) =
+        "https://music.youtube.com/channel/${artist.id}"
+
+    override suspend fun onShare(playlist: Playlist) =
+        "https://music.youtube.com/playlist?list=${playlist.id}"
+
+    override suspend fun onShare(track: Track) =
+        "https://music.youtube.com/watch?v=${track.id}"
+
+    override suspend fun onShare(user: User) =
+        throw IllegalAccessException()
 }
