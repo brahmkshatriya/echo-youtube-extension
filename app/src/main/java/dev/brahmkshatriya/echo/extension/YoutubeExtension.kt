@@ -32,10 +32,10 @@ import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.common.settings.SettingSwitch
-import dev.brahmkshatriya.echo.extension.endpoints.EchoAlbumEndPoint
-import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistSectionListEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLibraryEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLyricsEndPoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistEndpoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistSectionListEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoVideoEndpoint
@@ -89,7 +89,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private val libraryEndPoint = EchoLibraryEndPoint(api)
     private val songEndPoint = EchoSongEndPoint(api)
     private val videoEndpoint = EchoVideoEndpoint(api)
-    private val albumEndPoint = EchoAlbumEndPoint(api)
+    private val playlistEndPoint = EchoPlaylistEndpoint(api)
     private val playlistSectionListEndpoint = EchoPlaylistSectionListEndpoint(api)
     private val lyricsEndPoint = EchoLyricsEndPoint(api)
 
@@ -299,11 +299,12 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     override fun getMediaItems(album: Album): PagedData<MediaItemsContainer> = PagedData.Single {
-        album.tracks.lastOrNull()?.let { loadRelated(it) } ?: emptyList()
+        album.tracks.lastOrNull()?.let { loadRelated(loadTrack(it)) } ?: emptyList()
     }
 
     override suspend fun loadAlbum(small: Album): Album {
-        return albumEndPoint.loadPlaylist(small.id).getOrThrow().toAlbum(false, HIGH)
+        val (ytmPlaylist, _) = playlistEndPoint.loadFromPlaylist(small.id)
+        return ytmPlaylist.toAlbum(false, HIGH)
     }
 
     private suspend fun getArtistMediaItems(artist: Artist): List<MediaItemsContainer.Category> {
@@ -347,14 +348,16 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     override fun getMediaItems(playlist: Playlist) = PagedData.Single {
-        val cont = playlist.extras["cont"] ?: return@Single emptyList()
+        val cont = playlist.extras["relatedId"]
+            ?: throw Exception("No related id found.")
         val continuation = playlistSectionListEndpoint.loadFromPlaylist(cont).getOrThrow()
         continuation.map { it.toMediaItemsContainer(api, language, thumbnailQuality) }
     }
 
     override suspend fun loadPlaylist(playlist: Playlist): Playlist {
         val channelId = api.user_auth_state?.own_channel_id
-        return api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow().toPlaylist(channelId, HIGH)
+        val (ytmPlaylist, related) = playlistEndPoint.loadFromPlaylist(playlist.id)
+        return ytmPlaylist.toPlaylist(channelId, HIGH, related)
     }
 
     override val loginWebViewInitialUrl =

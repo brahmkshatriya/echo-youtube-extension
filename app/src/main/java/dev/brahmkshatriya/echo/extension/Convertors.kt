@@ -66,9 +66,11 @@ fun YtmMediaItem.toEchoMediaItem(
     }
 }
 
-fun YtmPlaylist.toPlaylist(channelId: String?, quality: ThumbnailProvider.Quality): Playlist {
+fun YtmPlaylist.toPlaylist(
+    channelId: String?, quality: ThumbnailProvider.Quality, related: String? = null
+): Playlist {
     val extras = mutableMapOf<String, String>()
-    continuation?.token?.let { extras["cont"] = it }
+    related?.let { extras["relatedId"] = it }
     item_set_ids?.let { extras["item_set_ids"] = it.joinToString(",") }
     return Playlist(
         id = id,

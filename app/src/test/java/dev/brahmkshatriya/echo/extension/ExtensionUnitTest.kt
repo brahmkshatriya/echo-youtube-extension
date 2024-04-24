@@ -73,11 +73,11 @@ class ExtensionUnitTest {
         differ: AsyncPagingDataDiffer<T>
     ) = coroutineScope {
         val job = launch { collect { differ.submitData(it) } }
-        val refresh = differ.loadStateFlow
-            .first { it.refresh is LoadState.NotLoading }
-            .refresh
+        val state = differ.loadStateFlow.first {
+            it.refresh !is LoadState.Loading
+        }.refresh
         job.cancel()
-        if (refresh is LoadState.Error) throw refresh.error
+        if (state is LoadState.Error) throw state.error
         differ.snapshot().items
     }
 
@@ -181,7 +181,7 @@ class ExtensionUnitTest {
     @Test
     fun testTrackStream() = testIn("Testing Track Stream") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
-        val search = Track("wimxNdDBII4","")
+        val search = Track("wimxNdDBII4", "")
         measureTimeMillis {
             val track = extension.loadTrack(search)
             val streamable = track.audioStreamables.firstOrNull()
@@ -220,13 +220,23 @@ class ExtensionUnitTest {
         if (extension !is AlbumClient) error("AlbumClient is not implemented")
         val album = extension.loadAlbum(small)
         println(album)
+        val mediaItems = extension.getMediaItems(album).getItems(differ)
+        mediaItems.forEach {
+            println(it)
+        }
     }
 
     @Test
     fun testPlaylistMediaItems() = testIn("Testing Playlist Media Items") {
         if (extension !is PlaylistClient) error("PlaylistClient is not implemented")
         val playlist =
-            extension.loadPlaylist(Playlist("OLAK5uy_nzng1uXYiMNsFOLmnNw9bPIUkZq95Pj7k", "", false))
+            extension.loadPlaylist(
+                Playlist(
+                    "RDCLAK5uy_mHAEb33pqvgdtuxsemicZNu-5w6rLRweo",
+                    "",
+                    false
+                )
+            )
         println(playlist)
         val mediaItems = extension.getMediaItems(playlist).getItems(differ)
         mediaItems.forEach {
