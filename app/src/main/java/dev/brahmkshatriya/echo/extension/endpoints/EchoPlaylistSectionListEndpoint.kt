@@ -9,7 +9,6 @@ import io.ktor.client.statement.HttpResponse
 open class EchoPlaylistSectionListEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
 
     suspend fun loadFromPlaylist(token: String) = runCatching {
-        val hl: String = api.data_language
         val response: HttpResponse = api.client.request {
             endpointPath("browse")
             url {
@@ -24,7 +23,7 @@ open class EchoPlaylistSectionListEndpoint(override val api: YoutubeiApi) : ApiE
         val data: YoutubeiBrowseResponse = response.body()
         val contents =
             data.continuationContents?.sectionListContinuation?.contents
-        contents?.let { EchoSongFeedEndpoint.processRows(it, api, hl) } ?: emptyList()
+        contents?.let { EchoSongFeedEndpoint.processRows(it, api) } ?: emptyList()
     }
 
 }

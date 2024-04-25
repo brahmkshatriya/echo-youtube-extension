@@ -4,6 +4,7 @@ import androidx.paging.AsyncPagingDataDiffer
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import dev.brahmkshatriya.echo.common.clients.AlbumClient
+import dev.brahmkshatriya.echo.common.clients.ArtistClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistClient
@@ -11,6 +12,7 @@ import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.models.Album
+import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
@@ -66,6 +68,11 @@ class ExtensionUnitTest {
 
     private val differ = AsyncPagingDataDiffer(
         MediaItemsContainerComparator(),
+        ListCallback(),
+    )
+
+    private val itemDiffer = AsyncPagingDataDiffer(
+        EchoMediaItemComparator(),
         ListCallback(),
     )
 
@@ -216,14 +223,14 @@ class ExtensionUnitTest {
     fun testAlbumGet() = testIn("Testing Album Get") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
 //        val small = extension.loadTrack(searchTrack()).album ?: error("Track has no album")
-        val small = Album("MPREb_zgcvnHHrPoc", "")
+        val small = Album("OLAK5uy_l-1jWIT8QWsQ5y49fgfNDU7Gt_w6uUaU4", "")
         if (extension !is AlbumClient) error("AlbumClient is not implemented")
         val album = extension.loadAlbum(small)
         println(album)
-        val mediaItems = extension.getMediaItems(album).getItems(differ)
-        mediaItems.forEach {
-            println(it)
-        }
+//        val mediaItems = extension.getMediaItems(album).getItems(differ)
+//        mediaItems.forEach {
+//            println(it)
+//        }
     }
 
     @Test
@@ -241,6 +248,29 @@ class ExtensionUnitTest {
         val mediaItems = extension.getMediaItems(playlist).getItems(differ)
         mediaItems.forEach {
             println(it)
+        }
+    }
+
+    @Test
+    fun testArtistMediaItems() = testIn("Testing Artist Media Items") {
+        val small = Artist("UCibXKvuw5PoJVmyZJ4qhDIw", "")
+        if (extension !is ArtistClient) error("ArtistClient is not implemented")
+        val artist = extension.loadArtist(small)
+        println(artist)
+        val mediaItems = extension.getMediaItems(artist).getItems(differ)
+        mediaItems.forEach {
+            it as MediaItemsContainer.Category
+            println("${it.title} : ${it.subtitle}")
+            println("${it.list.size} : ${it.more}")
+            it.list.forEach { item ->
+                println("${item.title} : ${item.subtitle}")
+            }
+            if(it.more != null) {
+                println("Loading More")
+                it.more?.getItems(itemDiffer)?.forEach { item ->
+                    println("${item.title} : ${item.subtitle}")
+                }
+            }
         }
     }
 }

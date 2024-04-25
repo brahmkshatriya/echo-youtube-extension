@@ -1,6 +1,7 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
+import dev.toastbits.ytmkt.impl.youtubei.YoutubeiPostBody
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import dev.toastbits.ytmkt.model.YtmApi
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider
@@ -10,13 +11,13 @@ import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylistBuilder
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
 import dev.toastbits.ytmkt.model.internal.Header
-import dev.toastbits.ytmkt.model.internal.HeaderRenderer
 import dev.toastbits.ytmkt.model.internal.YoutubeiBrowseResponse
 import dev.toastbits.ytmkt.radio.RadioContinuation
 import dev.toastbits.ytmkt.uistrings.parseYoutubeDurationString
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.put
 
@@ -30,28 +31,73 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
         playlistId: String,
         params: String? = null
     ): Pair<YtmPlaylist, String?> = run {
-        val id = formatBrowseId(playlistId)
+        val resolveUrl = if (!playlistId.startsWith("MPREb_"))
+            api.client.request {
+                endpointPath("navigation/resolve_url")
+                addApiHeadersWithAuthenticated()
+                postWithBody {
+                    put("url", "https://music.youtube.com/playlist?list=$playlistId")
+                }
+            }.body<PlaylistEndpointResponse>().endpoint?.browseEndpoint
+        else null
+
+        val id = resolveUrl?.browseId ?: formatBrowseId(playlistId)
+        val param = resolveUrl?.params ?: params
+
         val res = api.client.request {
             endpointPath("browse")
             addApiHeadersWithAuthenticated()
-            postWithBody {
+            postWithBody(YoutubeiPostBody.MOBILE.getPostBody(api)) {
                 put("browseId", id)
-                if (params != null) {
-                    put("params", params)
+                if (param != null) {
+                    put("params", param)
                 }
             }
         }
 
-        val data: PlaylistUrlResponse = res.body()
-        val loadedPlaylistUrl = data.microformat?.microformatDataRenderer?.urlCanonical
-        if (loadedPlaylistUrl != null) {
-            val newId = loadedPlaylistUrl.substringAfter("?list=").substringBefore("&")
-            return loadFromPlaylist(newId, params)
-        }
+        val parsed =
+            parsePlaylistResponse(playlistId, res, api.data_language, api).getOrThrow()
 
-        val hl: String = api.data_language
-        parsePlaylistResponse(playlistId, res, hl, api).getOrThrow()
+        if (parsed.first.items == null) {
+            val data: PlaylistUrlResponse = res.body()
+            val loadedPlaylistUrl = data.microformat?.microformatDataRenderer?.urlCanonical
+            if (loadedPlaylistUrl != null) {
+                val newId = loadedPlaylistUrl.substringAfter("?list=").substringBefore("&")
+                return loadFromPlaylist(newId, params)
+            }
+        }
+        parsed
     }
+
+
+    @Serializable
+    data class PlaylistEndpointResponse(
+        val endpoint: Endpoint? = null
+    ) {
+
+        @Serializable
+        data class Endpoint(
+            val browseEndpoint: BrowseEndpoint? = null
+        )
+
+        @Serializable
+        data class BrowseEndpoint(
+            val browseId: String? = null,
+            val params: String? = null,
+            val browseEndpointContextSupportedConfigs: BrowseEndpointContextSupportedConfigs? = null
+        )
+
+        @Serializable
+        data class BrowseEndpointContextSupportedConfigs(
+            val browseEndpointContextMusicConfig: BrowseEndpointContextMusicConfig? = null
+        )
+
+        @Serializable
+        data class BrowseEndpointContextMusicConfig(
+            val pageType: String? = null
+        )
+    }
+
 
     @Serializable
     private data class PlaylistUrlResponse(val microformat: Microformat?) {
@@ -69,11 +115,10 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
         hl: String,
         api: YtmApi
     ): Result<Pair<YtmPlaylist, String?>> = runCatching {
+        println(response.bodyAsText())
         val parsed: YoutubeiBrowseResponse = response.body()
-
         val builder = YtmPlaylistBuilder(playlistId)
-
-        val headerRenderer: HeaderRenderer? = parsed.header?.getRenderer()
+        val headerRenderer = parsed.header?.getRenderer()
         if (headerRenderer != null) {
             builder.name = headerRenderer.title!!.first_text
             builder.description = headerRenderer.description?.first_text
@@ -120,7 +165,6 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
 
         val relatedId =
             sectionListRenderer?.continuations?.firstOrNull()?.nextContinuationData?.continuation
-
         for (row in sectionListRenderer?.contents.orEmpty().withIndex()) {
             val description: String? = row.value.description
             if (description != null) {

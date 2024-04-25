@@ -16,7 +16,6 @@ import dev.brahmkshatriya.echo.common.exceptions.LoginRequiredException
 import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
-import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ExtensionMetadata
 import dev.brahmkshatriya.echo.common.models.Genre
@@ -33,6 +32,7 @@ import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.common.settings.SettingSwitch
+import dev.brahmkshatriya.echo.extension.endpoints.EchoArtistEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLibraryEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLyricsEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistEndpoint
@@ -41,7 +41,6 @@ import dev.brahmkshatriya.echo.extension.endpoints.EchoSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoVideoEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.TimedLyricsDatum
-import dev.toastbits.ytmkt.endpoint.ArtistWithParamsRow
 import dev.toastbits.ytmkt.endpoint.SongFeedLoadResult
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiAuthenticationState
@@ -49,6 +48,7 @@ import dev.toastbits.ytmkt.model.external.PlaylistEditor
 import dev.toastbits.ytmkt.model.external.SongLikedStatus
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.HIGH
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.LOW
+import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.request.headers
 import io.ktor.client.request.request
@@ -88,6 +88,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     private val language = ENGLISH
 
     private val songFeedEndPoint = EchoSongFeedEndpoint(api)
+    private val artistEndPoint = EchoArtistEndpoint(api)
     private val libraryEndPoint = EchoLibraryEndPoint(api)
     private val songEndPoint = EchoSongEndPoint(api)
     private val videoEndpoint = EchoVideoEndpoint(api)
@@ -310,8 +311,10 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     private suspend fun getArtistMediaItems(artist: Artist): List<MediaItemsContainer.Category> {
-        val result = api.LoadArtist.loadArtist(artist.id).getOrThrow()
-        val list = result.layouts?.map {
+        val result = loadedArtist.takeIf { artist.id == it?.id }
+            ?: api.LoadArtist.loadArtist(artist.id).getOrThrow()
+
+        return result.layouts?.map {
             val title = it.title?.getString(ENGLISH)
             val single = title == SINGLES
             MediaItemsContainer.Category(title = it.title?.getString(language) ?: "Unknown",
@@ -321,15 +324,14 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
                 } ?: emptyList(),
                 more = it.view_more?.getBrowseParamsData()?.let { param ->
                     continuationFlow {
-                        val rows = api.ArtistWithParams.loadArtistWithParams(param).getOrThrow()
-                        val data = rows.map { itemLayout ->
-                            itemLayout.toMediaItems()
-                        }.flatten()
-                        Page(data, null)
+                        val data = playlistEndPoint.loadFromPlaylist(param.browse_id).first.items
+                            ?.mapNotNull { song ->
+                                song.toEchoMediaItem(api, single, thumbnailQuality)
+                            }
+                        Page(data ?: emptyList(), null)
                     }
                 })
         } ?: emptyList()
-        return list
     }
 
     override fun getMediaItems(artist: Artist) = PagedData.Single<MediaItemsContainer> {
@@ -337,16 +339,11 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
 
+    private var loadedArtist: YtmArtist? = null
     override suspend fun loadArtist(small: Artist): Artist {
-        val result = api.LoadArtist.loadArtist(small.id).getOrThrow()
+        val result = artistEndPoint.loadArtist(small.id)
+        loadedArtist = result
         return result.toArtist(HIGH)!!
-    }
-
-
-    private fun ArtistWithParamsRow.toMediaItems(): List<EchoMediaItem> {
-        return items.mapNotNull { item ->
-            item.toEchoMediaItem(api, title == SINGLES, thumbnailQuality)
-        }
     }
 
     override fun getMediaItems(playlist: Playlist) = PagedData.Single {

@@ -79,7 +79,7 @@ fun YtmPlaylist.toPlaylist(
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         authors = artists?.mapNotNull { it.toArtist(quality) } ?: emptyList(),
         tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
-        subtitle = description,
+        subtitle = description?.takeIf { it.isNotEmpty() } ?: year?.toString(),
         duration = total_duration,
         creationDate = year?.toString(),
         extras = extras,
@@ -132,6 +132,7 @@ fun YtmArtist.toArtist(
     )
 }
 
+
 fun YtmPlaylist.toAlbum(
     single: Boolean = false,
     quality: ThumbnailProvider.Quality
@@ -149,7 +150,7 @@ fun YtmPlaylist.toAlbum(
         publisher = null,
         duration = total_duration,
         description = description,
-        subtitle = null,
+        subtitle = year?.toString(),
     )
 }
 
