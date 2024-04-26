@@ -223,7 +223,7 @@ class ExtensionUnitTest {
     fun testAlbumGet() = testIn("Testing Album Get") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
 //        val small = extension.loadTrack(searchTrack()).album ?: error("Track has no album")
-        val small = Album("OLAK5uy_l-1jWIT8QWsQ5y49fgfNDU7Gt_w6uUaU4", "")
+        val small = Album("OLAK5uy_mxh0nd0ZvSxiDVWflNGUSWxGz0ju1OA-E", "")
         if (extension !is AlbumClient) error("AlbumClient is not implemented")
         val album = extension.loadAlbum(small)
         println(album)
@@ -253,7 +253,7 @@ class ExtensionUnitTest {
 
     @Test
     fun testArtistMediaItems() = testIn("Testing Artist Media Items") {
-        val small = Artist("UCibXKvuw5PoJVmyZJ4qhDIw", "")
+        val small = Artist("UCySqAU8DY0BnB2j5uYdCbLA", "")
         if (extension !is ArtistClient) error("ArtistClient is not implemented")
         val artist = extension.loadArtist(small)
         println(artist)

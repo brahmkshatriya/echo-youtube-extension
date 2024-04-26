@@ -2,15 +2,15 @@
 
 package dev.brahmkshatriya.echo.extension.endpoints
 
-import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
-import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
 import dev.toastbits.ytmkt.endpoint.LoadSongEndpoint
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.itemcache.MediaItemCache
 import dev.toastbits.ytmkt.model.YtmApi
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider
+import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmMediaItem
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
+import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
 import dev.toastbits.ytmkt.model.internal.BrowseEndpoint
 import dev.toastbits.ytmkt.model.internal.MusicResponsiveListItemRenderer
 import dev.toastbits.ytmkt.model.internal.MusicThumbnailRenderer
@@ -22,8 +22,8 @@ import dev.toastbits.ytmkt.uistrings.parseYoutubeDurationString
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
-import kotlinx.serialization.json.put
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.put
 
 open class EchoSongEndPoint(override val api: YoutubeiApi): LoadSongEndpoint() {
     override suspend fun loadSong(
@@ -84,6 +84,7 @@ open class EchoSongEndPoint(override val api: YoutubeiApi): LoadSongEndpoint() {
         val artists: List<YtmArtist>? = video.getArtists(api).getOrThrow()
         val album = video.getAlbum()
         val duration = parseYoutubeDurationString(video.lengthText.first_text, api.data_language)
+        //Todo add liked
         return@runCatching YtmSong(
             id = songId,
             thumbnail_provider = ThumbnailProvider.fromThumbnails(video.thumbnail.thumbnails),
@@ -93,7 +94,7 @@ open class EchoSongEndPoint(override val api: YoutubeiApi): LoadSongEndpoint() {
             duration = duration,
             is_explicit = isExplicit,
             lyrics_browse_id = lyricsBrowseId,
-            related_browse_id = relatedBrowseId
+            related_browse_id = relatedBrowseId,
         )
     }
 }

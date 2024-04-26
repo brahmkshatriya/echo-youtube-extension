@@ -33,12 +33,13 @@ import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.common.settings.SettingSwitch
 import dev.brahmkshatriya.echo.extension.endpoints.EchoArtistEndpoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoArtistMoreEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLibraryEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLyricsEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistEndpoint
-import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistSectionListEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoSongRelatedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoVideoEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.TimedLyricsDatum
 import dev.toastbits.ytmkt.endpoint.SongFeedLoadResult
@@ -89,11 +90,12 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
     private val songFeedEndPoint = EchoSongFeedEndpoint(api)
     private val artistEndPoint = EchoArtistEndpoint(api)
+    private val artistMoreEndpoint = EchoArtistMoreEndpoint(api)
     private val libraryEndPoint = EchoLibraryEndPoint(api)
     private val songEndPoint = EchoSongEndPoint(api)
+    private val songRelatedEndpoint = EchoSongRelatedEndpoint(api)
     private val videoEndpoint = EchoVideoEndpoint(api)
     private val playlistEndPoint = EchoPlaylistEndpoint(api)
-    private val playlistSectionListEndpoint = EchoPlaylistSectionListEndpoint(api)
     private val lyricsEndPoint = EchoLyricsEndPoint(api)
 
     companion object {
@@ -323,12 +325,13 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
                     item.toEchoMediaItem(api, single, thumbnailQuality)
                 } ?: emptyList(),
                 more = it.view_more?.getBrowseParamsData()?.let { param ->
-                    continuationFlow {
-                        val data = playlistEndPoint.loadFromPlaylist(param.browse_id).first.items
-                            ?.mapNotNull { song ->
-                                song.toEchoMediaItem(api, single, thumbnailQuality)
+                    PagedData.Single {
+                        val data = artistMoreEndpoint.load(param)
+                        data.map { row ->
+                            row.items.mapNotNull { item ->
+                                item.toEchoMediaItem(api, single, thumbnailQuality)
                             }
-                        Page(data ?: emptyList(), null)
+                        }.flatten()
                     }
                 })
         } ?: emptyList()
@@ -349,7 +352,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override fun getMediaItems(playlist: Playlist) = PagedData.Single {
         val cont = playlist.extras["relatedId"]
             ?: throw Exception("No related id found.")
-        val continuation = playlistSectionListEndpoint.loadFromPlaylist(cont).getOrThrow()
+        val continuation = songRelatedEndpoint.loadFromPlaylist(cont).getOrThrow()
         continuation.map { it.toMediaItemsContainer(api, language, thumbnailQuality) }
     }
 
@@ -505,7 +508,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     override suspend fun onShare(album: Album) =
-        "https://music.youtube.com/playlist?list=${album.id}"
+        "https://music.youtube.com/browse/${album.id}"
 
     override suspend fun onShare(artist: Artist) =
         "https://music.youtube.com/channel/${artist.id}"

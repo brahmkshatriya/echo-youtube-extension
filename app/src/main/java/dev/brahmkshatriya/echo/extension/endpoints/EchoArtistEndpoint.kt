@@ -14,7 +14,6 @@ import dev.toastbits.ytmkt.uistrings.parseYoutubeSubscribersString
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.put
 
 class EchoArtistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
@@ -38,7 +37,6 @@ class EchoArtistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
         hl: String,
         api: YoutubeiApi
     ): Result<YtmArtist> = runCatching {
-        println(response.bodyAsText())
         val parsed: YoutubeiBrowseResponse = response.body()
         val builder = YtmArtistBuilder(artistId)
 
@@ -65,9 +63,6 @@ class EchoArtistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
         }
 
         val shelfList = parsed.getShelves(false)
-        shelfList.forEach {
-            println(it.title)
-        }
         builder.layouts = processRows(shelfList, api).map {
             YtmArtistLayout(
                 items = it.items,

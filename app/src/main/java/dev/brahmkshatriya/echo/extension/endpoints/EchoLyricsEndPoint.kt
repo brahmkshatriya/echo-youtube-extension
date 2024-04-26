@@ -1,11 +1,11 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
+import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint.Companion.clientContext
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 class EchoLyricsEndPoint(override val api: YoutubeiApi) : ApiEndpoint() {
@@ -13,7 +13,7 @@ class EchoLyricsEndPoint(override val api: YoutubeiApi) : ApiEndpoint() {
         val response = api.client.request {
             endpointPath("browse")
             addApiHeadersWithoutAuthentication()
-            postWithBody(context) {
+            postWithBody(clientContext) {
                 put("browseId", id)
             }
         }
@@ -22,14 +22,6 @@ class EchoLyricsEndPoint(override val api: YoutubeiApi) : ApiEndpoint() {
         return data.contents?.elementRenderer?.newElement?.type?.componentType?.model?.timedLyricsModel?.lyricsData?.timedLyricsData
     }
 
-    private val context = buildJsonObject {
-        put("context", buildJsonObject {
-            put("client", buildJsonObject {
-                put("clientName", "26")
-                put("clientVersion", "6.48.2")
-            })
-        })
-    }
 }
 
 @Serializable

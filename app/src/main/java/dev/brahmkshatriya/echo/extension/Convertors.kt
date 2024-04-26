@@ -80,9 +80,30 @@ fun YtmPlaylist.toPlaylist(
         authors = artists?.mapNotNull { it.toArtist(quality) } ?: emptyList(),
         tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
         subtitle = description?.takeIf { it.isNotEmpty() } ?: year?.toString(),
-        duration = total_duration,
+        duration = total_duration ?: items?.sumOf { it.duration ?: 0 },
         creationDate = year?.toString(),
         extras = extras,
+    )
+}
+
+fun YtmPlaylist.toAlbum(
+    single: Boolean = false,
+    quality: ThumbnailProvider.Quality
+): Album {
+    return Album(
+        id = id,
+        title = name ?: "Unknown",
+        cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
+        artists = artists?.mapNotNull {
+            it.toArtist(quality)
+        } ?: emptyList(),
+        numberOfTracks = item_count ?: if (single) 1 else null,
+        releaseDate = year?.toString(),
+        tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
+        publisher = null,
+        duration = total_duration,
+        description = description,
+        subtitle = year?.toString(),
     )
 }
 
@@ -132,27 +153,6 @@ fun YtmArtist.toArtist(
     )
 }
 
-
-fun YtmPlaylist.toAlbum(
-    single: Boolean = false,
-    quality: ThumbnailProvider.Quality
-): Album {
-    return Album(
-        id = id,
-        title = name ?: "Unknown",
-        cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
-        artists = artists?.mapNotNull {
-            it.toArtist(quality)
-        } ?: emptyList(),
-        numberOfTracks = item_count ?: if (single) 1 else null,
-        releaseDate = year?.toString(),
-        tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
-        publisher = null,
-        duration = total_duration,
-        description = description,
-        subtitle = year?.toString(),
-    )
-}
 
 private val jsonParser = Json { ignoreUnknownKeys = true }
 suspend fun HttpResponse.getArtists(

@@ -42,7 +42,7 @@ class EchoLibraryEndPoint(override val api: YoutubeiApi) : ApiEndpoint() {
                     if (contentsItem.musicTwoRowItemRenderer?.navigationEndpoint?.browseEndpoint == null) {
                         return@mapNotNull null
                     }
-                    contentsItem.musicTwoRowItemRenderer?.menu?.menuRenderer?.items
+                    contentsItem.musicTwoRowItemRenderer.menu?.menuRenderer?.items
                         ?.findLast { it.menuNavigationItemRenderer?.icon?.iconType == "DELETE" }
                         ?.let { return@mapNotNull item.copy(owner_id = api.user_auth_state?.own_channel_id) }
                 }

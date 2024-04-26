@@ -6,7 +6,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
 
-open class EchoPlaylistSectionListEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
+open class EchoSongRelatedEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
 
     suspend fun loadFromPlaylist(token: String) = runCatching {
         val response: HttpResponse = api.client.request {
