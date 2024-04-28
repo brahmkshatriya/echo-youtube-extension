@@ -423,7 +423,6 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
     override suspend fun onStartedPlaying(clientId: String, track: Track) {}
 
-
     override suspend fun getLibraryGenres() = listOf(
         Genre("FEmusic_library_landing", "All"),
         Genre("FEmusic_history", "History"),
@@ -447,12 +446,11 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         getFeed(genre, it)
     }
 
-
-    override suspend fun createPlaylist(name: String, description: String?): Playlist {
+    override suspend fun createPlaylist(title: String, description: String?): Playlist {
         val auth = api.user_auth_state
             ?: throw LoginRequiredException.from(this)
         val playlistId =
-            auth.CreateAccountPlaylist.createAccountPlaylist(name, description ?: "").getOrThrow()
+            auth.CreateAccountPlaylist.createAccountPlaylist(title, description ?: "").getOrThrow()
         val playlist = api.LoadPlaylist.loadPlaylist(playlistId).getOrThrow()
         return playlist.toPlaylist(auth.own_channel_id, HIGH)
     }
@@ -471,9 +469,17 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         return liked
     }
 
+    override suspend fun listEditablePlaylists(): List<Playlist> {
+        val auth = api.user_auth_state
+            ?: throw LoginRequiredException.from(this)
+        return auth.AccountPlaylists.getAccountPlaylists().getOrThrow().map {
+            it.toPlaylist(auth.own_channel_id, thumbnailQuality)
+        }
+    }
+
     private suspend fun performAction(
         playlist: Playlist,
-        action: List<PlaylistEditor.Action>
+        actions: List<PlaylistEditor.Action>
     ): Boolean {
         val auth = api.user_auth_state
             ?: throw LoginRequiredException.from(this)
@@ -481,15 +487,18 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
             ?: throw Exception("No item set ids found")
         val editor =
             auth.AccountPlaylistEditor.getEditor(playlist.id, playlist.tracks.map { it.id }, sets)
-        val res = editor.performAndCommitActions(action)
+        val res = editor.performAndCommitActions(actions)
         return res.isSuccess
     }
 
+    override suspend fun editPlaylistMetadata(
+        playlist: Playlist, title: String, description: String?
+    ) {
+        performAction(playlist, listOf(PlaylistEditor.Action.SetTitle(title)))
+    }
+
     override suspend fun removeTracksFromPlaylist(playlist: Playlist, trackIndexes: List<Int>) {
-        performAction(
-            playlist,
-            trackIndexes.map { PlaylistEditor.Action.Remove(it) }
-        )
+        performAction(playlist, trackIndexes.map { PlaylistEditor.Action.Remove(it) })
     }
 
     override suspend fun addTracksToPlaylist(playlist: Playlist, tracks: List<Track>) {
@@ -497,10 +506,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     override suspend fun moveTrackInPlaylist(playlist: Playlist, fromIndex: Int, toIndex: Int) {
-        performAction(
-            playlist,
-            listOf(PlaylistEditor.Action.Move(fromIndex, toIndex))
-        )
+        performAction(playlist, listOf(PlaylistEditor.Action.Move(fromIndex, toIndex)))
     }
 
     suspend fun getLyrics(id: String): List<TimedLyricsDatum>? {
