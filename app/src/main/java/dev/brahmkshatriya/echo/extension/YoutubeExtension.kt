@@ -497,12 +497,15 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         performAction(playlist, listOf(PlaylistEditor.Action.SetTitle(title)))
     }
 
-    override suspend fun removeTracksFromPlaylist(playlist: Playlist, trackIndexes: List<Int>) {
-        performAction(playlist, trackIndexes.map { PlaylistEditor.Action.Remove(it) })
+    override suspend fun removeTracksFromPlaylist(playlist: Playlist, trackIndexes: List<Track>) {
+        performAction(
+            playlist,
+            trackIndexes.map { PlaylistEditor.Action.Remove(playlist.tracks.indexOf(it)) }
+        )
     }
 
-    override suspend fun addTracksToPlaylist(playlist: Playlist, tracks: List<Track>) {
-        performAction(playlist, tracks.map { PlaylistEditor.Action.Add(it.id, null) })
+    override suspend fun addTracksToPlaylist(playlist: Playlist, index: Int?, tracks: List<Track>) {
+        performAction(playlist, tracks.map { PlaylistEditor.Action.Add(it.id, index) })
     }
 
     override suspend fun moveTrackInPlaylist(playlist: Playlist, fromIndex: Int, toIndex: Int) {
