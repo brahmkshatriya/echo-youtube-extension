@@ -11,6 +11,7 @@ import dev.toastbits.ytmkt.radio.RadioContinuation
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.put
 
@@ -58,6 +59,7 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                 }
             }
         }
+        println(res.bodyAsText())
         val items = mutableListOf<YtmSong>()
         val ids = mutableListOf<String>()
         val (playlist, relation) =

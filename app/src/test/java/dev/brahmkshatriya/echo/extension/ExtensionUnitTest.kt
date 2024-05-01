@@ -181,7 +181,7 @@ class ExtensionUnitTest {
         val search = Track("qeFt3fdsydA", "")
         measureTimeMillis {
             val track = extension.loadTrack(search)
-            println(track)
+            println(track.liked)
         }.also { println("time : $it") }
     }
 

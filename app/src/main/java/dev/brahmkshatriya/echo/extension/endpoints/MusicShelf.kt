@@ -10,7 +10,8 @@ import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
 import dev.toastbits.ytmkt.model.internal.Header
 import dev.toastbits.ytmkt.model.internal.HeaderRenderer
-import dev.toastbits.ytmkt.model.internal.MusicTwoRowItemRenderer
+import dev.toastbits.ytmkt.model.internal.MusicResponsiveListItemRenderer
+import dev.toastbits.ytmkt.model.internal.NavigationEndpoint
 import dev.toastbits.ytmkt.model.internal.TextRuns
 import dev.toastbits.ytmkt.model.internal.ThumbnailRenderer
 import dev.toastbits.ytmkt.model.internal.YoutubeiHeader
@@ -19,114 +20,123 @@ import dev.toastbits.ytmkt.radio.YoutubeiNextResponse
 import dev.toastbits.ytmkt.uistrings.parseYoutubeDurationString
 import kotlinx.serialization.Serializable
 
-fun MusicTwoRowItemRenderer.toYtmMediaItem(api: YtmApi): YtmMediaItem? {
+@Serializable
+data class MusicTwoRowItemRenderer(
+    val navigationEndpoint: NavigationEndpoint,
+    val title: TextRuns,
+    val subtitle: TextRuns?,
+    val thumbnailRenderer: ThumbnailRenderer,
+    val menu: Menu?,
+    val subtitleBadges: List<MusicResponsiveListItemRenderer.Badge>?
+) {
+    fun toYtmMediaItem(api: YtmApi): YtmMediaItem? {
+        fun getArtists(
+            hostItem: YtmMediaItem,
+            api: YtmApi
+        ): List<YtmArtist>? {
+            val artists: List<YtmArtist>? = subtitle?.runs?.mapNotNull { run ->
+                val browseEndpoint: dev.toastbits.ytmkt.model.internal.BrowseEndpoint? =
+                    run.navigationEndpoint?.browseEndpoint
+                if (browseEndpoint?.browseId == null || browseEndpoint.getMediaItemType() != YtmMediaItem.Type.ARTIST) {
+                    return@mapNotNull null
+                }
 
-    fun getArtists(
-        hostItem: YtmMediaItem,
-        api: YtmApi
-    ): List<YtmArtist>? {
-        val artists: List<YtmArtist>? = subtitle?.runs?.mapNotNull { run ->
-            val browseEndpoint: dev.toastbits.ytmkt.model.internal.BrowseEndpoint? =
-                run.navigationEndpoint?.browseEndpoint
-            if (browseEndpoint?.browseId == null || browseEndpoint.getMediaItemType() != YtmMediaItem.Type.ARTIST) {
-                return@mapNotNull null
+                return@mapNotNull YtmArtist(
+                    browseEndpoint.browseId!!,
+                    name = run.text
+                )
             }
 
-            return@mapNotNull YtmArtist(
-                browseEndpoint.browseId!!,
-                name = run.text
-            )
-        }
+            if (!artists.isNullOrEmpty()) {
+                return artists
+            }
 
-        if (!artists.isNullOrEmpty()) {
-            return artists
-        }
+            if (hostItem is YtmSong) {
+                val songType: YtmSong.Type? = api.item_cache.getSong(
+                    hostItem.id,
+                    setOf(MediaItemCache.SongKey.TYPE)
+                )?.type
 
-        if (hostItem is YtmSong) {
-            val songType: YtmSong.Type? = api.item_cache.getSong(
-                hostItem.id,
-                setOf(MediaItemCache.SongKey.TYPE)
-            )?.type
-
-            val index: Int = if (songType == YtmSong.Type.VIDEO) 0 else 1
-            subtitle?.runs?.getOrNull(index)?.also {
-                return listOf(
-                    YtmArtist(YtmArtist.getForItemId(hostItem)).copy(
-                        name = it.text
+                val index: Int = if (songType == YtmSong.Type.VIDEO) 0 else 1
+                subtitle?.runs?.getOrNull(index)?.also {
+                    return listOf(
+                        YtmArtist(YtmArtist.getForItemId(hostItem)).copy(
+                            name = it.text
+                        )
                     )
-                )
-            }
-        }
-
-        return null
-    }
-
-    // Video
-    val watchEndpoint = navigationEndpoint.watchEndpoint
-    val playlistEndpoint = navigationEndpoint.watchPlaylistEndpoint
-    return if (watchEndpoint?.videoId != null) {
-        val album: YtmPlaylist? = menu?.menuRenderer?.items?.find {
-            it.menuNavigationItemRenderer?.navigationEndpoint?.browseEndpoint?.getMediaItemType() == YtmMediaItem.Type.PLAYLIST
-        }?.menuNavigationItemRenderer?.navigationEndpoint?.browseEndpoint?.browseId?.let {
-            YtmPlaylist(YtmPlaylist.cleanId(it))
-        }
-        val thumbnail =
-            thumbnailRenderer.musicThumbnailRenderer?.thumbnail?.thumbnails?.firstOrNull()
-        val songId: String = YtmSong.cleanId(watchEndpoint.videoId!!)
-        YtmSong(
-            id = songId,
-            type =
-            if (thumbnail?.height == thumbnail?.width) YtmSong.Type.SONG
-            else YtmSong.Type.VIDEO,
-            name = this.title.first_text,
-            thumbnail_provider = thumbnailRenderer.toThumbnailProvider(),
-            artists = getArtists(YtmSong(songId), api),
-            is_explicit = subtitleBadges?.any { it.isExplicit() } == true,
-            album = album
-        )
-    } else if (playlistEndpoint != null) {
-        YtmPlaylist(
-            id = YtmPlaylist.cleanId(playlistEndpoint.playlistId),
-            type = YtmPlaylist.Type.RADIO,
-            name = title.first_text,
-            thumbnail_provider = thumbnailRenderer.toThumbnailProvider()
-        )
-    } else {
-        val endpoint = navigationEndpoint.browseEndpoint
-        // Playlist or artist
-        val browseId: String = endpoint?.browseId ?: return null
-        val pageType: String = endpoint.getPageType() ?: return null
-
-        val title: String = title.first_text
-        val thumbnailProvider = thumbnailRenderer.toThumbnailProvider()
-
-        when (YtmMediaItem.Type.fromBrowseEndpointType(pageType)) {
-            YtmMediaItem.Type.SONG -> {
-                val songId: String = YtmSong.cleanId(browseId)
-                YtmSong(
-                    songId,
-                    name = title,
-                    thumbnail_provider = thumbnailProvider,
-                    artists = getArtists(YtmSong(songId), api)
-                )
+                }
             }
 
-            YtmMediaItem.Type.ARTIST -> YtmArtist(
-                browseId,
-                name = title,
-                thumbnail_provider = thumbnailProvider
+            return null
+        }
+
+        // Video
+        val watchEndpoint = navigationEndpoint.watchEndpoint
+        val playlistEndpoint = navigationEndpoint.watchPlaylistEndpoint
+        return if (watchEndpoint?.videoId != null) {
+            val album: YtmPlaylist? = menu?.menuRenderer?.items?.find {
+                it.menuNavigationItemRenderer?.navigationEndpoint?.browseEndpoint?.getMediaItemType() == YtmMediaItem.Type.PLAYLIST
+            }?.menuNavigationItemRenderer?.navigationEndpoint?.browseEndpoint?.browseId?.let {
+                YtmPlaylist(YtmPlaylist.cleanId(it))
+            }
+            val thumbnail =
+                thumbnailRenderer.musicThumbnailRenderer?.thumbnail?.thumbnails?.firstOrNull()
+            val songId: String = YtmSong.cleanId(watchEndpoint.videoId!!)
+            YtmSong(
+                id = songId,
+                type =
+                if (thumbnail?.height == thumbnail?.width) YtmSong.Type.SONG
+                else YtmSong.Type.VIDEO,
+                name = this.title.first_text,
+                thumbnail_provider = thumbnailRenderer.toThumbnailProvider(),
+                artists = getArtists(YtmSong(songId), api),
+                is_explicit = menu?.menuRenderer?.title?.musicMenuTitleRenderer?.endButtons?.firstOrNull()?.likeButtonRenderer?.likeStatus == "LIKE",
+                album = album
             )
+        } else if (playlistEndpoint != null) {
+            YtmPlaylist(
+                id = YtmPlaylist.cleanId(playlistEndpoint.playlistId),
+                type = YtmPlaylist.Type.RADIO,
+                name = title.first_text,
+                thumbnail_provider = thumbnailRenderer.toThumbnailProvider()
+            )
+        } else {
+            val endpoint = navigationEndpoint.browseEndpoint
+            // Playlist or artist
+            val browseId: String = endpoint?.browseId ?: return null
+            val pageType: String = endpoint.getPageType() ?: return null
 
-            YtmMediaItem.Type.PLAYLIST -> {
-                val playlistId: String = YtmPlaylist.cleanId(browseId)
-                YtmPlaylist(
-                    playlistId,
-                    type = YtmPlaylist.Type.fromBrowseEndpointType(pageType),
-                    artists = getArtists(YtmPlaylist(playlistId), api),
+            val title: String = title.first_text
+            val thumbnailProvider = thumbnailRenderer.toThumbnailProvider()
+
+            when (YtmMediaItem.Type.fromBrowseEndpointType(pageType)) {
+                YtmMediaItem.Type.SONG -> {
+                    val songId: String = YtmSong.cleanId(browseId)
+                    YtmSong(
+                        songId,
+                        name = title,
+                        thumbnail_provider = thumbnailProvider,
+                        artists = getArtists(YtmSong(songId), api)
+                    )
+                }
+
+                YtmMediaItem.Type.ARTIST -> YtmArtist(
+                    browseId,
                     name = title,
-                    thumbnail_provider = thumbnailProvider,
-                    year = subtitle?.runs?.find { it.text.length == 4 }?.text?.toIntOrNull()
+                    thumbnail_provider = thumbnailProvider
                 )
+
+                YtmMediaItem.Type.PLAYLIST -> {
+                    val playlistId: String = YtmPlaylist.cleanId(browseId)
+                    YtmPlaylist(
+                        playlistId,
+                        type = YtmPlaylist.Type.fromBrowseEndpointType(pageType),
+                        artists = getArtists(YtmPlaylist(playlistId), api),
+                        name = title,
+                        thumbnail_provider = thumbnailProvider,
+                        year = subtitle?.runs?.find { it.text.length == 4 }?.text?.toIntOrNull()
+                    )
+                }
             }
         }
     }
@@ -142,8 +152,7 @@ data class MusicTwoColumnItemRenderer(
     val menu: Menu? = null,
     val playlistItemData: PlaylistItemData? = null,
     val menuIconDisplayPolicy: String? = null
-)
-{
+) {
 
     fun toMediaItemData(hl: String): Pair<YtmMediaItem, String?>? {
         return YtmSong(
@@ -172,7 +181,8 @@ data class MusicTwoColumnItemRenderer(
             duration = subtitle?.runs?.find { it.text?.contains(":") == true }?.text?.let {
                 parseYoutubeDurationString(it, hl)
             },
-            type = YtmSong.Type.SONG
+            type = YtmSong.Type.SONG,
+            is_explicit = menu?.menuRenderer?.title?.musicMenuTitleRenderer?.endButtons?.firstOrNull()?.likeButtonRenderer?.likeStatus == "LIKE"
         ) to playlistItemData?.playlistSetVideoId
     }
 
@@ -394,6 +404,90 @@ data class MusicCardShelfRenderer(
     val thumbnail: ThumbnailRenderer,
     val title: TextRuns,
     val subtitle: TextRuns,
-    val menu: YoutubeiNextResponse.Menu,
+    val menu: Menu,
     override val header: Header
 ) : YoutubeiHeaderContainer
+
+@Serializable
+data class Menu(val menuRenderer: MenuRenderer?)
+
+@Serializable
+data class MenuRenderer(
+    val items: List<YoutubeiNextResponse.MenuItem>? = null,
+    val title: Title? = null
+)
+
+@Serializable
+data class Title(
+    val musicMenuTitleRenderer: MusicMenuTitleRenderer? = null
+)
+
+@Serializable
+data class MusicMenuTitleRenderer(
+    val primaryText: PrimaryText? = null,
+    val secondaryText: SecondaryText? = null,
+    val thumbnail: MusicMenuTitleRendererThumbnail? = null,
+    val endButtons: List<EndButton>? = null
+)
+
+@Serializable
+data class EndButton(
+    val likeButtonRenderer: LikeButtonRenderer? = null
+)
+
+@Serializable
+data class LikeButtonRenderer(
+    val target: Target? = null,
+    val likeStatus: String? = null,
+    val likesAllowed: Boolean? = null,
+    val serviceEndpoints: List<ServiceEndpoint>? = null
+)
+
+@Serializable
+data class ServiceEndpoint(
+    val likeEndpoint: LikeEndpoint? = null
+)
+
+@Serializable
+data class LikeEndpoint(
+    val status: String? = null,
+    val target: Target? = null
+)
+
+@Serializable
+data class Target(
+    val videoId: String? = null
+)
+
+@Serializable
+data class PrimaryText(
+    val runs: List<Run>? = null
+)
+
+@Serializable
+data class Run(
+    val text: String? = null
+)
+
+@Serializable
+data class SecondaryText(
+    val runs: List<Run>? = null,
+)
+
+@Serializable
+data class MusicMenuTitleRendererThumbnail(
+    val musicThumbnailRenderer: MusicThumbnailRenderer? = null
+)
+
+@Serializable
+data class MusicThumbnailRenderer(
+    val thumbnail: MusicThumbnailRendererThumbnail? = null,
+    val thumbnailCrop: String? = null,
+    val thumbnailScale: String? = null,
+    val trackingParams: String? = null
+)
+
+@Serializable
+data class MusicThumbnailRendererThumbnail(
+    val thumbnails: List<Thumbnail>? = null
+)

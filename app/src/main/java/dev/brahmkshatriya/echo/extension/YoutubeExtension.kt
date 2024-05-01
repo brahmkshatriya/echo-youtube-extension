@@ -494,7 +494,10 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override suspend fun editPlaylistMetadata(
         playlist: Playlist, title: String, description: String?
     ) {
-        performAction(playlist, listOf(PlaylistEditor.Action.SetTitle(title)))
+        performAction(playlist, listOfNotNull(
+            PlaylistEditor.Action.SetTitle(title),
+            description?.let { PlaylistEditor.Action.SetDescription(it) }
+        ))
     }
 
     override suspend fun removeTracksFromPlaylist(playlist: Playlist, tracks: List<Track>) {

@@ -52,7 +52,7 @@ android {
 dependencies {
     val libVersion = "4b690d709a"
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
-    implementation("com.github.toasterofbread.ytm-kt:library-jvm:ba4c927fc5")
+    implementation("com.github.toasterofbread.ytm-kt:ytmkt-jvm:faa7e5257a")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")

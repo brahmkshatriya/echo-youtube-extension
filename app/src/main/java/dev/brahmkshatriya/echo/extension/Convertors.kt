@@ -122,7 +122,7 @@ fun YtmSong.toTrack(
         duration = duration,
         plays = null,
         releaseDate = album?.releaseDate,
-        liked = false,
+        liked = is_explicit,
         extras = extras ?: emptyMap(),
     )
 }
