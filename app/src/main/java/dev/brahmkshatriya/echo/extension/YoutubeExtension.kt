@@ -6,6 +6,7 @@ import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
 import dev.brahmkshatriya.echo.common.clients.LibraryClient
 import dev.brahmkshatriya.echo.common.clients.LoginClient
+import dev.brahmkshatriya.echo.common.clients.LyricsClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
@@ -20,6 +21,8 @@ import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ExtensionMetadata
 import dev.brahmkshatriya.echo.common.models.Genre
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
+import dev.brahmkshatriya.echo.common.models.Lyric
+import dev.brahmkshatriya.echo.common.models.LyricsItem
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.QuickSearchItem
@@ -41,7 +44,6 @@ import dev.brahmkshatriya.echo.extension.endpoints.EchoSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongRelatedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoVideoEndpoint
-import dev.brahmkshatriya.echo.extension.endpoints.TimedLyricsDatum
 import dev.toastbits.ytmkt.endpoint.SongFeedLoadResult
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiAuthenticationState
@@ -60,7 +62,7 @@ import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchClient, RadioClient,
     AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView, TrackerClient, LibraryClient,
-    ShareClient {
+    ShareClient, LyricsClient {
     override val metadata = ExtensionMetadata(
         id = "youtube-music",
         name = "Youtube Music",
@@ -346,7 +348,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override suspend fun loadArtist(small: Artist): Artist {
         val result = artistEndPoint.loadArtist(small.id)
         loadedArtist = result
-        return result.toArtist(HIGH)!!
+        return result.toArtist(HIGH)
     }
 
     override fun getMediaItems(playlist: Playlist) = PagedData.Single {
@@ -416,19 +418,18 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     }
 
     override suspend fun onMarkAsPlayed(clientId: String, track: Track) {
-        println("marking as played : $track")
         api.user_auth_state?.MarkSongAsWatched?.markSongAsWatched(track.id)?.getOrThrow()
-        println("marked as played")
     }
 
     override suspend fun onStartedPlaying(clientId: String, track: Track) {}
+    override suspend fun onStoppedPlaying(clientId: String, track: Track) {}
 
     override suspend fun getLibraryGenres() = listOf(
         Genre("FEmusic_library_landing", "All"),
         Genre("FEmusic_history", "History"),
         Genre("FEmusic_liked_playlists", "Playlists"),
+        Genre("FEmusic_listening_review", "Review"),
         Genre("FEmusic_liked_videos", "Songs"),
-        Genre("FEmusic_liked_albums", "Albums"),
         Genre("FEmusic_library_corpus_track_artists", "Artists")
     )
 
@@ -515,10 +516,6 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         performAction(playlist, listOf(PlaylistEditor.Action.Move(fromIndex, toIndex)))
     }
 
-    suspend fun getLyrics(id: String): List<TimedLyricsDatum>? {
-        return lyricsEndPoint.getLyrics(id)
-    }
-
     override suspend fun onShare(album: Album) =
         "https://music.youtube.com/browse/${album.id}"
 
@@ -533,4 +530,19 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
     override suspend fun onShare(user: User) =
         throw IllegalAccessException()
+
+    override suspend fun getLyrics(item: LyricsItem) = lyricsCache[item.id]!!
+    private val lyricsCache = mutableMapOf<String, List<Lyric>>()
+
+    override suspend fun searchTrackLyrics(clientId: String, track: Track) = PagedData.Single {
+        val lyricsId = track.extras["lyricsId"] ?: return@Single listOf()
+        val data = lyricsEndPoint.getLyrics(lyricsId) ?: return@Single listOf()
+        val lyrics = data.first.map {
+            it.cueRange.run {
+                Lyric(it.lyricLine, startTimeMilliseconds.toLong(), endTimeMilliseconds.toLong())
+            }
+        }
+        lyricsCache[lyricsId] = lyrics
+        listOf(LyricsItem(lyricsId, track.title, data.second))
+    }
 }

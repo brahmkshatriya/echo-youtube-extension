@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.put
 
 class EchoLyricsEndPoint(override val api: YoutubeiApi) : ApiEndpoint() {
-    suspend fun getLyrics(id: String): List<TimedLyricsDatum>? {
+    suspend fun getLyrics(id: String): Pair<List<TimedLyricsDatum>, String?>? {
         val response = api.client.request {
             endpointPath("browse")
             addApiHeadersWithoutAuthentication()
@@ -17,9 +17,11 @@ class EchoLyricsEndPoint(override val api: YoutubeiApi) : ApiEndpoint() {
                 put("browseId", id)
             }
         }
-
         val data = response.body<LyricsResponse>()
-        return data.contents?.elementRenderer?.newElement?.type?.componentType?.model?.timedLyricsModel?.lyricsData?.timedLyricsData
+        return data.contents?.elementRenderer?.newElement?.type
+            ?.componentType?.model?.timedLyricsModel?.lyricsData?.run {
+                timedLyricsData to sourceMessage
+            }
     }
 
 }
@@ -67,7 +69,7 @@ data class TimedLyricsModel(
 
 @Serializable
 data class LyricsData(
-    val timedLyricsData: List<TimedLyricsDatum>? = null,
+    val timedLyricsData: List<TimedLyricsDatum>,
     val sourceMessage: String? = null,
     val trackingParams: String? = null,
     val disableTapToSeek: Boolean? = null,
@@ -102,14 +104,14 @@ data class LogLyricEventCommand(
 
 @Serializable
 data class TimedLyricsDatum(
-    val lyricLine: String? = null,
-    val cueRange: CueRange? = null
+    val lyricLine: String,
+    val cueRange: CueRange
 )
 
 @Serializable
 data class CueRange(
-    val startTimeMilliseconds: String? = null,
-    val endTimeMilliseconds: String? = null,
+    val startTimeMilliseconds: String,
+    val endTimeMilliseconds: String,
     val metadata: Metadata? = null
 )
 

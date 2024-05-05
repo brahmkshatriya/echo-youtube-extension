@@ -14,7 +14,6 @@ import dev.toastbits.ytmkt.uistrings.YoutubeUiString
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -52,7 +51,6 @@ open class EchoSongFeedEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                     }
                 }
             }
-            println(response.bodyAsText())
             return response.body()
         }
 

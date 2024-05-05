@@ -104,7 +104,6 @@ data class YoutubeiBrowseResponse(
                 ?: musicPlaylistShelfRenderer?.contents
                 ?: musicCarouselShelfRenderer?.contents
                 ?: gridRenderer?.items
-            println("media item contents : $contents")
             contents?.mapNotNull { it.toMediaItemData(hl, api)?.first }
         }
 
@@ -146,7 +145,8 @@ data class YoutubeiBrowseResponse(
         }
 
         fun getRenderer() =
-            musicShelfRenderer ?: musicPlaylistShelfRenderer ?: musicCarouselShelfRenderer ?: musicDescriptionShelfRenderer ?: musicCardShelfRenderer ?: gridRenderer
+            musicShelfRenderer ?: musicPlaylistShelfRenderer ?: musicCarouselShelfRenderer
+            ?: musicDescriptionShelfRenderer ?: musicCardShelfRenderer ?: gridRenderer
     }
 
     @Serializable
@@ -241,7 +241,7 @@ data class YoutubeiBrowseResponse(
                     thumbnail = thumbnails?.let { it1 -> ThumbnailProvider.fromThumbnails(it1) },
                     artists = listOfNotNull(artist),
                     year = null,
-                    isEditable = true
+                    isEditable = !(it.metadataFieldsDisabled ?: false)
                 )
             }
 
@@ -416,7 +416,8 @@ data class YoutubeiBrowseResponse(
         val description: Subtitle? = null,
         val editDescription: Subtitle? = null,
         val privacy: String? = null,
-        val playlistId: String? = null
+        val playlistId: String? = null,
+        val metadataFieldsDisabled: Boolean? = null
     )
 
     @Serializable

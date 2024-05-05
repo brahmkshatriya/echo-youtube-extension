@@ -7,13 +7,16 @@ import dev.brahmkshatriya.echo.common.clients.AlbumClient
 import dev.brahmkshatriya.echo.common.clients.ArtistClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
+import dev.brahmkshatriya.echo.common.clients.LyricsClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
+import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
+import dev.brahmkshatriya.echo.common.models.LyricsItem
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.Track
@@ -239,12 +242,14 @@ class ExtensionUnitTest {
         val playlist =
             extension.loadPlaylist(
                 Playlist(
-                    "RDCLAK5uy_mHAEb33pqvgdtuxsemicZNu-5w6rLRweo",
+                    "PLSWY81108wBhKajj1EUuBr89ydg-DUjPy",
                     "",
                     false
                 )
             )
-        println(playlist)
+        playlist.tracks.forEach {
+            println(it.artists)
+        }
         val mediaItems = extension.getMediaItems(playlist).getItems(differ)
         mediaItems.forEach {
             println(it)
@@ -271,6 +276,25 @@ class ExtensionUnitTest {
                     println("${item.title} : ${item.subtitle}")
                 }
             }
+        }
+    }
+
+    @Test
+    fun testLyrics() = testIn("Lyrics") {
+        if (extension !is TrackClient) error("TrackClient is not implemented")
+        val small = Track("iDkSRTBDxJY", "")
+        val track = extension.loadTrack(small)
+        println(track)
+        if(extension !is LyricsClient) error("LyricsClient is not implemented")
+        val lyricsItems = extension.searchTrackLyrics("", track) as PagedData.Single<LyricsItem>
+        val lyricsItem = lyricsItems.data().firstOrNull()
+        if(lyricsItem == null) {
+            println("Lyrics not found")
+            return@testIn
+        }
+        val lyrics = extension.getLyrics(lyricsItem)
+        lyrics.forEach {
+            println(it)
         }
     }
 }

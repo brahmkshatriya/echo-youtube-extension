@@ -11,7 +11,6 @@ import dev.toastbits.ytmkt.radio.RadioContinuation
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.put
 
@@ -59,7 +58,6 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                 }
             }
         }
-        println(res.bodyAsText())
         val items = mutableListOf<YtmSong>()
         val ids = mutableListOf<String>()
         val (playlist, relation) =
@@ -134,18 +132,19 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
             val relatedId =
                 sectionListRenderer?.continuations?.firstOrNull()?.nextContinuationData?.continuation
 
-            val row = sectionListRenderer?.contents?.firstOrNull()
-            if (row != null) {
-                val rowItems = row.getMediaItemsAndSetIds(hl, api)
-                builder.items = rowItems?.map { it.first }?.filterIsInstance<YtmSong>()
-                val continuationToken: String? =
+            var continuationToken: String? = null
+            val items = sectionListRenderer?.contents?.mapNotNull { row ->
+                continuationToken =
                     row.musicPlaylistShelfRenderer?.continuations?.firstOrNull()?.nextContinuationData?.continuation
-                builder.continuation = continuationToken?.let {
-                    RadioContinuation(it, RadioContinuation.Type.PLAYLIST)
-                }
-                builder.item_set_ids = rowItems?.let { pairs ->
-                    if (pairs.all { it.second != null }) pairs.map { it.second!! } else null
-                }
+                row.getMediaItemsAndSetIds(hl, api)?.mapNotNull { (item, set) ->
+                    if (item is YtmSong) item to set
+                    else null
+                } ?: return@mapNotNull null
+            }?.flatten() ?: emptyList()
+            builder.items = items.map { it.first }
+            builder.item_set_ids = items.mapNotNull { it.second }
+            builder.continuation = continuationToken?.let {
+                RadioContinuation(it, RadioContinuation.Type.PLAYLIST)
             }
 
             val continuationItems =

@@ -50,7 +50,7 @@ android {
 }
 
 dependencies {
-    val libVersion = "4b690d709a"
+    val libVersion = "f757498e05"
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
     implementation("com.github.toasterofbread.ytm-kt:ytmkt-jvm:faa7e5257a")
 

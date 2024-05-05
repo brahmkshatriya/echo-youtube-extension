@@ -61,7 +61,7 @@ fun YtmMediaItem.toEchoMediaItem(
             else -> EchoMediaItem.Lists.PlaylistItem(toPlaylist(channelId, quality))
         }
 
-        is YtmArtist -> toArtist(quality)?.let { EchoMediaItem.Profile.ArtistItem(it) }
+        is YtmArtist -> toArtist(quality).let { EchoMediaItem.Profile.ArtistItem(it) }
         else -> null
     }
 }
@@ -77,7 +77,7 @@ fun YtmPlaylist.toPlaylist(
         title = name ?: "Unknown",
         isEditable = owner_id != null && channelId == owner_id,
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
-        authors = artists?.mapNotNull { it.toArtist(quality) } ?: emptyList(),
+        authors = artists?.map { it.toArtist(quality) } ?: emptyList(),
         tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
         description = description,
         subtitle = artists?.joinToString(", ") { it.name ?: "Unknown" } ?: year?.toString(),
@@ -95,9 +95,7 @@ fun YtmPlaylist.toAlbum(
         id = id,
         title = name ?: "Unknown",
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
-        artists = artists?.mapNotNull {
-            it.toArtist(quality)
-        } ?: emptyList(),
+        artists = artists?.map { it.toArtist(quality) } ?: emptyList(),
         numberOfTracks = item_count ?: if (single) 1 else null,
         releaseDate = year?.toString(),
         tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
@@ -112,18 +110,20 @@ fun YtmSong.toTrack(
     quality: ThumbnailProvider.Quality
 ): Track {
     val album = album?.toAlbum(false, quality)
-    val extras = related_browse_id?.let { mapOf("relatedId" to it) }
+    val extras = mutableMapOf<String, String>()
+    related_browse_id?.let { extras["relatedId"] = it }
+    lyrics_browse_id?.let { extras["lyricsId"] = it }
     return Track(
         id = id,
         title = name ?: "Unknown",
-        artists = artists?.mapNotNull { it.toArtist(quality) } ?: emptyList(),
+        artists = artists?.map { it.toArtist(quality) } ?: emptyList(),
         cover = getCover(id, quality),
         album = album,
         duration = duration,
         plays = null,
         releaseDate = album?.releaseDate,
         liked = is_explicit,
-        extras = extras ?: emptyMap(),
+        extras = extras,
     )
 }
 
@@ -144,10 +144,10 @@ data class SongThumbnailProvider(val id: String) : ThumbnailProvider {
 
 fun YtmArtist.toArtist(
     quality: ThumbnailProvider.Quality,
-): Artist? {
+): Artist {
     return Artist(
         id = id,
-        name = name ?: return null,
+        name = name ?: "Unknown",
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         description = description,
         followers = subscriber_count,

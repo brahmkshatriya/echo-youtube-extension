@@ -142,6 +142,12 @@ data class MusicTwoRowItemRenderer(
     }
 }
 
+val timeRegex = Regex("""\d{1,2}:\d{1,2}""")
+fun MusicTwoColumnItemRenderer.Run?.isTime(): Boolean {
+    val text = this?.text ?: return false
+    return timeRegex.matches(text)
+}
+
 @Serializable
 data class MusicTwoColumnItemRenderer(
     val thumbnail: MusicMenuTitleRendererThumbnail? = null,
@@ -166,7 +172,7 @@ data class MusicTwoColumnItemRenderer(
                     val name = subtitle?.runs?.take(3)
                         ?.filter { run ->
                             val text = run.text ?: return@filter false
-                            !text.contains(":") && !text.contains("plays")
+                            !run.isTime() && !text.contains("plays")
                         }
                         ?.joinToString("") { run -> run.text ?: "" }
                         ?.substringBeforeLast("•")
@@ -178,7 +184,7 @@ data class MusicTwoColumnItemRenderer(
             thumbnail_provider = thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.let {
                 ThumbnailProvider.fromThumbnails(it)
             },
-            duration = subtitle?.runs?.find { it.text?.contains(":") == true }?.text?.let {
+            duration = subtitle?.runs?.find { it.isTime() }?.text?.let {
                 parseYoutubeDurationString(it, hl)
             },
             type = YtmSong.Type.SONG,

@@ -23,7 +23,6 @@ import dev.toastbits.ytmkt.uistrings.parseYoutubeDurationString
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.put
 
@@ -40,8 +39,6 @@ open class EchoSongEndPoint(override val api: YoutubeiApi) : LoadSongEndpoint() 
                 put("videoId", song_id)
             }
         }
-
-        println(nextResponse.bodyAsText())
         val song: YtmSong? = parseSongResponse(song_id, nextResponse, api).getOrNull()
         if (song != null) {
             return@runCatching song
@@ -54,7 +51,6 @@ open class EchoSongEndPoint(override val api: YoutubeiApi) : LoadSongEndpoint() 
                 put("videoId", song_id)
             }
         }
-        println(playerResponse.bodyAsText())
         val videoData: PlayerData = playerResponse.body()
         val videoDetails = videoData.videoDetails!!
 
