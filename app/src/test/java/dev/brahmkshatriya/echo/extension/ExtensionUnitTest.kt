@@ -101,10 +101,10 @@ class ExtensionUnitTest {
     }
 
     @Test
-    fun testHomeFeedWithGenre() = testIn("Testing Home Feed with Genre") {
+    fun testHomeFeedWithTab() = testIn("Testing Home Feed with Tab") {
         if (extension !is HomeFeedClient) error("HomeFeedClient is not implemented")
-        val genre = extension.getHomeGenres().firstOrNull()
-        val feed = extension.getHomeFeed(genre).getItems(differ)
+        val tab = extension.getHomeTabs().firstOrNull()
+        val feed = extension.getHomeFeed(tab).getItems(differ)
         feed.forEach {
             println(it)
         }
@@ -131,7 +131,7 @@ class ExtensionUnitTest {
     @Test
     fun testNullSearch() = testIn("Testing Null Search") {
         if (extension !is SearchClient) error("SearchClient is not implemented")
-        val search = extension.search(null, null).getItems(differ)
+        val search = extension.searchFeed(null, null).getItems(differ)
         search.forEach {
             println(it)
         }
@@ -140,22 +140,22 @@ class ExtensionUnitTest {
     @Test
     fun testSearch() = testIn("Testing Search") {
         if (extension !is SearchClient) error("SearchClient is not implemented")
-        println("Genres")
-        extension.searchGenres(searchQuery).forEach {
+        println("Tabs")
+        extension.searchTabs(searchQuery).forEach {
             println(it.name)
         }
         println("Search Results")
-        val search = extension.search(searchQuery, null).getItems(differ)
+        val search = extension.searchFeed(searchQuery, null).getItems(differ)
         search.forEach {
             println(it)
         }
     }
 
     @Test
-    fun testSearchWithGenre() = testIn("Testing Search with Genre") {
+    fun testSearchWithTab() = testIn("Testing Search with Tab") {
         if (extension !is SearchClient) error("SearchClient is not implemented")
-        val genre = extension.searchGenres(searchQuery).firstOrNull()
-        val search = extension.search(searchQuery, genre).getItems(differ)
+        val tab = extension.searchTabs(searchQuery).firstOrNull()
+        val search = extension.searchFeed(searchQuery, tab).getItems(differ)
         search.forEach {
             println(it)
         }
@@ -166,7 +166,7 @@ class ExtensionUnitTest {
         if (extension !is SearchClient) error("SearchClient is not implemented")
         val query = q ?: searchQuery
         println("Searching  : $query")
-        val items = extension.search(query, null).getItems(differ)
+        val items = extension.searchFeed(query, null).getItems(differ)
         val track = items.firstNotNullOfOrNull {
             val item = when (it) {
                 is MediaItemsContainer.Item -> it.media

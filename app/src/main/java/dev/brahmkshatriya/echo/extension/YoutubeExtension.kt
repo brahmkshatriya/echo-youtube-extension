@@ -19,7 +19,6 @@ import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.ExtensionMetadata
-import dev.brahmkshatriya.echo.common.models.Genre
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.Lyric
 import dev.brahmkshatriya.echo.common.models.LyricsItem
@@ -31,6 +30,7 @@ import dev.brahmkshatriya.echo.common.models.Request.Companion.toRequest
 import dev.brahmkshatriya.echo.common.models.Streamable
 import dev.brahmkshatriya.echo.common.models.StreamableAudio.Companion.toAudio
 import dev.brahmkshatriya.echo.common.models.StreamableVideo
+import dev.brahmkshatriya.echo.common.models.Tab
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.settings.Setting
@@ -105,21 +105,21 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         const val SINGLES = "Singles"
     }
 
-    private var oldGenre: Genre? = null
+    private var oldTab: Tab? = null
     private var feed: SongFeedLoadResult? = null
 
-    override suspend fun getHomeGenres(): List<Genre> {
+    override suspend fun getHomeTabs(): List<Tab> {
         val result = songFeedEndPoint.getSongFeed().getOrThrow()
         feed = result
-        val genres = result.filter_chips?.map {
-            Genre(it.params, it.text.getString(language))
+        val tabs = result.filter_chips?.map {
+            Tab(it.params, it.text.getString(language))
         } ?: return emptyList()
-        return listOf(listOf(Genre("null", "All")), genres).flatten()
+        return listOf(listOf(Tab("null", "All")), tabs).flatten()
     }
 
-    override fun getHomeFeed(genre: Genre?) = continuationFlow {
-        val params = genre?.id?.takeIf { id -> id != "null" }
-        val continuation = if (oldGenre == genre) it else null
+    override fun getHomeFeed(tab: Tab?) = continuationFlow {
+        val params = tab?.id?.takeIf { id -> id != "null" }
+        val continuation = if (oldTab == tab) it else null
         val result = feed?.also {
             feed = null
         } ?: songFeedEndPoint.getSongFeed(
@@ -129,7 +129,7 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         val data = result.layouts.map { itemLayout ->
             itemLayout.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
         }
-        oldGenre = genre
+        oldTab = tab
         Page(data, result.ctoken)
     }
 
@@ -208,13 +208,13 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
 
 
     private var oldSearch: Pair<String, List<MediaItemsContainer>>? = null
-    override fun search(query: String?, genre: Genre?) = PagedData.Single {
+    override fun searchFeed(query: String?, tab: Tab?) = PagedData.Single {
         query ?: return@Single emptyList()
         val old = oldSearch?.takeIf {
-            it.first == query && (genre == null || genre.id == "All")
+            it.first == query && (tab == null || tab.id == "All")
         }?.second
         if (old != null) return@Single old
-        val search = api.Search.searchMusic(query, genre?.id).getOrThrow()
+        val search = api.Search.searchMusic(query, tab?.id).getOrThrow()
         val list = search.categories.map { (itemLayout, _) ->
             itemLayout.items.mapNotNull { item ->
                 item.toEchoMediaItem(api, false, thumbnailQuality)?.toMediaItemsContainer()
@@ -223,20 +223,20 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         list
     }
 
-    override suspend fun searchGenres(query: String?): List<Genre> {
+    override suspend fun searchTabs(query: String?): List<Tab> {
         query ?: return emptyList()
         val search = api.Search.searchMusic(query, null).getOrThrow()
         oldSearch = query to search.categories.map { (itemLayout, _) ->
             itemLayout.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
         }
-        val genres = search.categories.mapNotNull { (item, filter) ->
+        val tabs = search.categories.mapNotNull { (item, filter) ->
             filter?.let {
-                Genre(
+                Tab(
                     it.params, item.title?.getString(language) ?: "???"
                 )
             }
         }
-        return listOf(Genre("All", "All")) + genres
+        return listOf(Tab("All", "All")) + tabs
     }
 
     override suspend fun radio(album: Album): Playlist {
@@ -424,27 +424,23 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
     override suspend fun onStartedPlaying(clientId: String, track: Track) {}
     override suspend fun onStoppedPlaying(clientId: String, track: Track) {}
 
-    override suspend fun getLibraryGenres() = listOf(
-        Genre("FEmusic_library_landing", "All"),
-        Genre("FEmusic_history", "History"),
-        Genre("FEmusic_liked_playlists", "Playlists"),
-        Genre("FEmusic_listening_review", "Review"),
-        Genre("FEmusic_liked_videos", "Songs"),
-        Genre("FEmusic_library_corpus_track_artists", "Artists")
+    override suspend fun getLibraryTabs() = listOf(
+        Tab("FEmusic_library_landing", "All"),
+        Tab("FEmusic_history", "History"),
+        Tab("FEmusic_liked_playlists", "Playlists"),
+//        Tab("FEmusic_listening_review", "Review"),
+        Tab("FEmusic_liked_videos", "Songs"),
+        Tab("FEmusic_library_corpus_track_artists", "Artists")
     )
 
-    suspend fun getFeed(genre: Genre?, it: String?) = run {
+    override fun getLibraryFeed(tab: Tab?) = continuationFlow {
         if (api.user_auth_state == null) throw LoginRequiredException.from(this)
-        val browseId = genre?.id ?: "FEmusic_library_landing"
+        val browseId = tab?.id ?: "FEmusic_library_landing"
         val (result, ctoken) = libraryEndPoint.loadLibraryFeed(browseId, it)
         val data = result.mapNotNull { playlist ->
             playlist.toEchoMediaItem(api, false, thumbnailQuality)?.toMediaItemsContainer()
         }
         Page<MediaItemsContainer>(data, ctoken)
-    }
-
-    override fun getLibraryFeed(genre: Genre?) = continuationFlow {
-        getFeed(genre, it)
     }
 
     override suspend fun createPlaylist(title: String, description: String?): Playlist {
@@ -501,10 +497,10 @@ class YoutubeExtension : ExtensionClient(), HomeFeedClient, TrackClient, SearchC
         ))
     }
 
-    override suspend fun removeTracksFromPlaylist(playlist: Playlist, tracks: List<Track>) {
+    override suspend fun removeTracksFromPlaylist(playlist: Playlist, indexes: List<Int>) {
         performAction(
             playlist,
-            tracks.map { PlaylistEditor.Action.Remove(playlist.tracks.indexOf(it)) }
+            indexes.map { PlaylistEditor.Action.Remove(it) }
         )
     }
 
