@@ -9,18 +9,30 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        val extensionName = "Youtube Music"
         val extensionClass = "YoutubeExtension"
+        val id = "youtube-music"
+        val name = "Youtube Music"
+        val version = "1.0.0"
+        val description = "Youtube Music Extension for Echo, with the help of YTM-kt library."
+        val author = "Echo"
+        val iconUrl = "https://music.youtube.com/img/favicon_144.png"
 
         applicationId = "dev.brahmkshatriya.echo.extension.ytm"
         minSdk = 24
         targetSdk = 34
 
         versionCode = 1
-        versionName = "1.0"
+        versionName = version
 
-        resValue("string", "app_name", "Echo : $extensionName Extension")
+        resValue("string", "app_name", "Echo : $name Extension")
         resValue("string", "class_path", "$namespace.$extensionClass")
+        resValue("string", "name", name)
+        resValue("string", "id", id)
+        resValue("string", "version", version)
+        resValue("string", "description", description)
+        resValue("string", "author", author)
+        resValue("string", "icon_url", iconUrl)
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -50,7 +62,7 @@ android {
 }
 
 dependencies {
-    val libVersion = "5b20446d12"
+    val libVersion = "728a3edac8"
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
     implementation("com.github.toasterofbread.ytm-kt:ytmkt-jvm:faa7e5257a")
 
@@ -64,6 +76,5 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1-Beta")
-    testImplementation("androidx.paging:paging-runtime-ktx:3.2.1")
     testImplementation("com.github.brahmkshatriya:echo:$libVersion")
 }

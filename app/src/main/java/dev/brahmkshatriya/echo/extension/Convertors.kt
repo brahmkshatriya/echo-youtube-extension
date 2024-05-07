@@ -1,5 +1,6 @@
 package dev.brahmkshatriya.echo.extension
 
+import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
@@ -36,13 +37,12 @@ fun MediaItemLayout.toMediaItemsContainer(
             item.toEchoMediaItem(api, single, quality)
         },
         more = view_more?.getBrowseParamsData()?.browse_id?.let { id ->
-            continuationFlow { _ ->
+            PagedData.Single {
                 val rows =
                     api.GenericFeedViewMorePage.getGenericFeedViewMorePage(id).getOrThrow()
-                val data = rows.mapNotNull { itemLayout ->
+                rows.mapNotNull { itemLayout ->
                     itemLayout.toEchoMediaItem(api, single, quality)
                 }
-                Page(data, null)
             }
         }
     )
@@ -71,14 +71,13 @@ fun YtmPlaylist.toPlaylist(
 ): Playlist {
     val extras = mutableMapOf<String, String>()
     related?.let { extras["relatedId"] = it }
-    item_set_ids?.let { extras["item_set_ids"] = it.joinToString(",") }
     return Playlist(
         id = id,
         title = name ?: "Unknown",
         isEditable = owner_id != null && channelId == owner_id,
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         authors = artists?.map { it.toArtist(quality) } ?: emptyList(),
-        tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
+        tracks = items?.size,
         description = description,
         subtitle = artists?.joinToString(", ") { it.name ?: "Unknown" } ?: year?.toString(),
         duration = total_duration ?: items?.sumOf { it.duration ?: 0 },
@@ -96,9 +95,8 @@ fun YtmPlaylist.toAlbum(
         title = name ?: "Unknown",
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         artists = artists?.map { it.toArtist(quality) } ?: emptyList(),
-        numberOfTracks = item_count ?: if (single) 1 else null,
+        tracks = item_count ?: if (single) 1 else null,
         releaseDate = year?.toString(),
-        tracks = items?.map { it.toTrack(quality) } ?: emptyList(),
         publisher = null,
         duration = total_duration,
         description = description,
@@ -107,12 +105,14 @@ fun YtmPlaylist.toAlbum(
 }
 
 fun YtmSong.toTrack(
-    quality: ThumbnailProvider.Quality
+    quality: ThumbnailProvider.Quality,
+    setId: String? = null
 ): Track {
     val album = album?.toAlbum(false, quality)
     val extras = mutableMapOf<String, String>()
     related_browse_id?.let { extras["relatedId"] = it }
     lyrics_browse_id?.let { extras["lyricsId"] = it }
+    setId?.let { extras["setId"] = it }
     return Track(
         id = id,
         title = name ?: "Unknown",

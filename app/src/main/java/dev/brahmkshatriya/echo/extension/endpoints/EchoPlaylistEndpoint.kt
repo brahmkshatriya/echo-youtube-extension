@@ -1,9 +1,14 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
+import dev.brahmkshatriya.echo.common.helpers.Page
+import dev.brahmkshatriya.echo.common.helpers.PagedData
+import dev.brahmkshatriya.echo.common.models.Track
+import dev.brahmkshatriya.echo.extension.toTrack
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiPostBody
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import dev.toastbits.ytmkt.model.YtmApi
+import dev.toastbits.ytmkt.model.external.ThumbnailProvider
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylistBuilder
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
@@ -28,8 +33,9 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
 
     suspend fun loadFromPlaylist(
         playlistId: String,
-        params: String? = null
-    ): Pair<YtmPlaylist, String?> = run {
+        params: String? = null,
+        quality: ThumbnailProvider.Quality
+    ): Triple<YtmPlaylist, String?, PagedData<Track>> = run {
 
         val endpoint = if (!playlistId.startsWith("MPREb_"))
             api.client.request {
@@ -58,20 +64,25 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                 }
             }
         }
-        val items = mutableListOf<YtmSong>()
-        val ids = mutableListOf<String>()
+
         val (playlist, relation) =
             parsePlaylistResponse(cleanId(id), res, api.data_language, api)
-        playlist.items?.let { items.addAll(it) }
-        playlist.item_set_ids?.let { ids.addAll(it) }
-        var continuation = playlist.continuation?.token
-        while (continuation != null) {
-            val (songs, setIds, cont) = continuationEndpoint.load(continuation)
-            songs?.let { items.addAll(it) }
-            setIds?.let { ids.addAll(it) }
-            continuation = cont
+        val songs = PagedData.Continuous { token ->
+            if (token == null) {
+                val ytmSongs = playlist.items ?: emptyList()
+                val sets = playlist.item_set_ids!!
+                Page(
+                    ytmSongs.mapIndexed { index, it -> it.toTrack(quality, sets[index]) },
+                    playlist.continuation?.token
+                )
+            } else {
+                val (songs, setIds, cont) = continuationEndpoint.load(token)
+                val ytmSongs = songs ?: emptyList()
+                val sets = setIds ?: emptyList()
+                Page(ytmSongs.mapIndexed { index, it -> it.toTrack(quality, sets[index]) }, cont)
+            }
         }
-        playlist.copy(items = items) to relation
+        Triple(playlist, relation, songs)
     }
 
 

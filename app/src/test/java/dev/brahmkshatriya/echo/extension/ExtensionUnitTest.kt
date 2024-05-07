@@ -1,8 +1,5 @@
 package dev.brahmkshatriya.echo.extension
 
-import androidx.paging.AsyncPagingDataDiffer
-import androidx.paging.LoadState
-import androidx.paging.PagingData
 import dev.brahmkshatriya.echo.common.clients.AlbumClient
 import dev.brahmkshatriya.echo.common.clients.ArtistClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
@@ -12,11 +9,9 @@ import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
 import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
-import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
-import dev.brahmkshatriya.echo.common.models.LyricsItem
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.Track
@@ -24,10 +19,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.resetMain
@@ -48,7 +39,8 @@ class ExtensionUnitTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(mainThreadSurrogate)
-        extension.setPreferences(MockSharedPrefs())
+        extension.setSettings(MockedSettings())
+        runBlocking { extension.onExtensionSelected() }
     }
 
     @After
@@ -64,37 +56,9 @@ class ExtensionUnitTest {
     }
 
     @Test
-    fun testMetadata() = testIn("Testing Extension Metadata") {
-        val metadata = extension.metadata
-        println(metadata)
-    }
-
-    private val differ = AsyncPagingDataDiffer(
-        MediaItemsContainerComparator(),
-        ListCallback(),
-    )
-
-    private val itemDiffer = AsyncPagingDataDiffer(
-        EchoMediaItemComparator(),
-        ListCallback(),
-    )
-
-    private suspend fun <T : Any> Flow<PagingData<T>>.getItems(
-        differ: AsyncPagingDataDiffer<T>
-    ) = coroutineScope {
-        val job = launch { collect { differ.submitData(it) } }
-        val state = differ.loadStateFlow.first {
-            it.refresh !is LoadState.Loading
-        }.refresh
-        job.cancel()
-        if (state is LoadState.Error) throw state.error
-        differ.snapshot().items
-    }
-
-    @Test
     fun testHomeFeed() = testIn("Testing Home Feed") {
         if (extension !is HomeFeedClient) error("HomeFeedClient is not implemented")
-        val feed = extension.getHomeFeed(null).getItems(differ)
+        val feed = extension.getHomeFeed(null).loadFirst()
         feed.forEach {
             println(it)
         }
@@ -104,7 +68,7 @@ class ExtensionUnitTest {
     fun testHomeFeedWithTab() = testIn("Testing Home Feed with Tab") {
         if (extension !is HomeFeedClient) error("HomeFeedClient is not implemented")
         val tab = extension.getHomeTabs().firstOrNull()
-        val feed = extension.getHomeFeed(tab).getItems(differ)
+        val feed = extension.getHomeFeed(tab).loadFirst()
         feed.forEach {
             println(it)
         }
@@ -131,7 +95,7 @@ class ExtensionUnitTest {
     @Test
     fun testNullSearch() = testIn("Testing Null Search") {
         if (extension !is SearchClient) error("SearchClient is not implemented")
-        val search = extension.searchFeed(null, null).getItems(differ)
+        val search = extension.searchFeed(null, null).loadFirst()
         search.forEach {
             println(it)
         }
@@ -145,7 +109,7 @@ class ExtensionUnitTest {
             println(it.name)
         }
         println("Search Results")
-        val search = extension.searchFeed(searchQuery, null).getItems(differ)
+        val search = extension.searchFeed(searchQuery, null).loadFirst()
         search.forEach {
             println(it)
         }
@@ -155,7 +119,7 @@ class ExtensionUnitTest {
     fun testSearchWithTab() = testIn("Testing Search with Tab") {
         if (extension !is SearchClient) error("SearchClient is not implemented")
         val tab = extension.searchTabs(searchQuery).firstOrNull()
-        val search = extension.searchFeed(searchQuery, tab).getItems(differ)
+        val search = extension.searchFeed(searchQuery, tab).loadFirst()
         search.forEach {
             println(it)
         }
@@ -166,7 +130,7 @@ class ExtensionUnitTest {
         if (extension !is SearchClient) error("SearchClient is not implemented")
         val query = q ?: searchQuery
         println("Searching  : $query")
-        val items = extension.searchFeed(query, null).getItems(differ)
+        val items = extension.searchFeed(query, null).loadFirst()
         val track = items.firstNotNullOfOrNull {
             val item = when (it) {
                 is MediaItemsContainer.Item -> it.media
@@ -207,7 +171,8 @@ class ExtensionUnitTest {
         if (extension !is RadioClient) error("RadioClient is not implemented")
         val track = extension.loadTrack(searchTrack())
         val radio = extension.radio(track)
-        radio.tracks.forEach {
+        val radioTracks = extension.loadTracks(radio).loadFirst()
+        radioTracks.forEach {
             println(it)
         }
     }
@@ -216,7 +181,7 @@ class ExtensionUnitTest {
     fun testTrackMediaItems() = testIn("Testing Track Media Items") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
         val track = extension.loadTrack(Track("iDkSRTBDxJY", ""))
-        val mediaItems = extension.getMediaItems(track).getItems(differ)
+        val mediaItems = extension.getMediaItems(track).loadFirst()
         mediaItems.forEach {
             println(it)
         }
@@ -230,7 +195,7 @@ class ExtensionUnitTest {
         if (extension !is AlbumClient) error("AlbumClient is not implemented")
         val album = extension.loadAlbum(small)
         println(album)
-//        val mediaItems = extension.getMediaItems(album).getItems(differ)
+//        val mediaItems = extension.getMediaItems(album).loadFirst()
 //        mediaItems.forEach {
 //            println(it)
 //        }
@@ -247,10 +212,11 @@ class ExtensionUnitTest {
                     false
                 )
             )
-        playlist.tracks.forEach {
-            println(it.artists)
+        val tracks = extension.loadTracks(playlist).loadFirst()
+        tracks.forEach {
+            println(it)
         }
-        val mediaItems = extension.getMediaItems(playlist).getItems(differ)
+        val mediaItems = extension.getMediaItems(playlist).loadFirst()
         mediaItems.forEach {
             println(it)
         }
@@ -262,7 +228,7 @@ class ExtensionUnitTest {
         if (extension !is ArtistClient) error("ArtistClient is not implemented")
         val artist = extension.loadArtist(small)
         println(artist)
-        val mediaItems = extension.getMediaItems(artist).getItems(differ)
+        val mediaItems = extension.getMediaItems(artist).loadFirst()
         mediaItems.forEach {
             it as MediaItemsContainer.Category
             println("${it.title} : ${it.subtitle}")
@@ -270,9 +236,9 @@ class ExtensionUnitTest {
             it.list.forEach { item ->
                 println("${item.title} : ${item.subtitle}")
             }
-            if(it.more != null) {
+            if (it.more != null) {
                 println("Loading More")
-                it.more?.getItems(itemDiffer)?.forEach { item ->
+                it.more?.loadFirst()?.forEach { item ->
                     println("${item.title} : ${item.subtitle}")
                 }
             }
@@ -285,15 +251,15 @@ class ExtensionUnitTest {
         val small = Track("iDkSRTBDxJY", "")
         val track = extension.loadTrack(small)
         println(track)
-        if(extension !is LyricsClient) error("LyricsClient is not implemented")
-        val lyricsItems = extension.searchTrackLyrics("", track) as PagedData.Single<LyricsItem>
-        val lyricsItem = lyricsItems.data().firstOrNull()
-        if(lyricsItem == null) {
+        if (extension !is LyricsClient) error("LyricsClient is not implemented")
+        val lyricsItems = extension.searchTrackLyrics("", track).loadFirst()
+        val lyricsItem = lyricsItems.firstOrNull()
+        if (lyricsItem == null) {
             println("Lyrics not found")
             return@testIn
         }
-        val lyrics = extension.getLyrics(lyricsItem)
-        lyrics.forEach {
+        val loaded = extension.loadLyrics(lyricsItem)
+        loaded.lyrics!!.forEach {
             println(it)
         }
     }
