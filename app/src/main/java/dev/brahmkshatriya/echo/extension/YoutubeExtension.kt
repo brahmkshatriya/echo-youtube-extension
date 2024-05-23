@@ -20,6 +20,7 @@ import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
+import dev.brahmkshatriya.echo.common.models.ExtensionType
 import dev.brahmkshatriya.echo.common.models.Lyric
 import dev.brahmkshatriya.echo.common.models.Lyrics
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
@@ -45,7 +46,6 @@ import dev.brahmkshatriya.echo.extension.endpoints.EchoSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongRelatedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoVideoEndpoint
-import dev.toastbits.ytmkt.endpoint.SongFeedLoadResult
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiAuthenticationState
 import dev.toastbits.ytmkt.model.external.PlaylistEditor
@@ -106,31 +106,16 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         const val SINGLES = "Singles"
     }
 
-    private var oldTab: Tab? = null
-    private var feed: SongFeedLoadResult? = null
-
-    override suspend fun getHomeTabs(): List<Tab> {
-        val result = songFeedEndPoint.getSongFeed().getOrThrow()
-        feed = result
-        val tabs = result.filter_chips?.map {
-            Tab(it.params, it.text.getString(language))
-        } ?: return emptyList()
-        return listOf(listOf(Tab("null", "All")), tabs).flatten()
-    }
+    override suspend fun getHomeTabs() = listOf<Tab>()
 
     override fun getHomeFeed(tab: Tab?) = PagedData.Continuous {
-        val params = tab?.id?.takeIf { id -> id != "null" }
-        val continuation = if (oldTab == tab) it else null
-        val result = feed?.also {
-            feed = null
-        } ?: songFeedEndPoint.getSongFeed(
-            params = params, continuation = continuation
+        val continuation = it
+        val result = songFeedEndPoint.getSongFeed(
+            params = null, continuation = continuation
         ).getOrThrow()
-
         val data = result.layouts.map { itemLayout ->
             itemLayout.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
         }
-        oldTab = tab
         Page(data, result.ctoken)
     }
 
@@ -209,35 +194,51 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
 
 
     private var oldSearch: Pair<String, List<MediaItemsContainer>>? = null
-    override fun searchFeed(query: String?, tab: Tab?) = PagedData.Single {
-        query ?: return@Single emptyList()
-        val old = oldSearch?.takeIf {
-            it.first == query && (tab == null || tab.id == "All")
-        }?.second
-        if (old != null) return@Single old
-        val search = api.Search.searchMusic(query, tab?.id).getOrThrow()
-        val list = search.categories.map { (itemLayout, _) ->
-            itemLayout.items.mapNotNull { item ->
-                item.toEchoMediaItem(api, false, thumbnailQuality)?.toMediaItemsContainer()
+    override fun searchFeed(query: String?, tab: Tab?): PagedData<MediaItemsContainer> =
+        if (query != null) PagedData.Single {
+            val old = oldSearch?.takeIf {
+                it.first == query && (tab == null || tab.id == "All")
+            }?.second
+            if (old != null) return@Single old
+            val search = api.Search.searchMusic(query, tab?.id).getOrThrow()
+            val list = search.categories.map { (itemLayout, _) ->
+                itemLayout.items.mapNotNull { item ->
+                    item.toEchoMediaItem(api, false, thumbnailQuality)?.toMediaItemsContainer()
+                }
+            }.flatten()
+            list
+        } else if (tab != null) PagedData.Continuous {
+            val params = tab.id
+            val continuation = it
+            val result = songFeedEndPoint.getSongFeed(
+                params = params, continuation = continuation
+            ).getOrThrow()
+            val data = result.layouts.map { itemLayout ->
+                itemLayout.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
             }
-        }.flatten()
-        list
-    }
+            Page(data, result.ctoken)
+        } else PagedData.Single { listOf() }
 
     override suspend fun searchTabs(query: String?): List<Tab> {
-        query ?: return emptyList()
-        val search = api.Search.searchMusic(query, null).getOrThrow()
-        oldSearch = query to search.categories.map { (itemLayout, _) ->
-            itemLayout.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
-        }
-        val tabs = search.categories.mapNotNull { (item, filter) ->
-            filter?.let {
-                Tab(
-                    it.params, item.title?.getString(language) ?: "???"
-                )
+        if (query != null) {
+            val search = api.Search.searchMusic(query, null).getOrThrow()
+            oldSearch = query to search.categories.map { (itemLayout, _) ->
+                itemLayout.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
             }
+            val tabs = search.categories.mapNotNull { (item, filter) ->
+                filter?.let {
+                    Tab(
+                        it.params, item.title?.getString(language) ?: "???"
+                    )
+                }
+            }
+            return listOf(Tab("All", "All")) + tabs
+        } else {
+            val result = songFeedEndPoint.getSongFeed().getOrThrow()
+            return result.filter_chips?.map {
+                Tab(it.params, it.text.getString(language))
+            } ?: emptyList()
         }
-        return listOf(Tab("All", "All")) + tabs
     }
 
     override suspend fun radio(album: Album): Playlist {
@@ -440,7 +441,8 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         Tab("FEmusic_library_corpus_track_artists", "Artists")
     )
 
-    private val loginRequiredException = LoginRequiredException("youtube-music", "Youtube Music")
+    private val loginRequiredException =
+        LoginRequiredException("youtube-music", "Youtube Music", ExtensionType.MUSIC)
 
     override fun getLibraryFeed(tab: Tab?) = PagedData.Continuous<MediaItemsContainer> {
         if (api.user_auth_state == null) throw loginRequiredException
