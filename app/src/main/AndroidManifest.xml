@@ -27,5 +27,18 @@
         <meta-data
             android:name="icon_url"
             android:value="@string/icon_url" />
+
+        <activity
+            android:name="dev.brahmkshatriya.echo.link.Opener"
+            android:exported="true">
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:host="music.youtube.com" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>
