@@ -62,8 +62,8 @@ import kotlinx.coroutines.coroutineScope
 import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchClient, RadioClient,
-    AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView, TrackerClient, LibraryClient,
-    ShareClient, LyricsClient {
+    AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView.Cookie, TrackerClient,
+    LibraryClient, ShareClient, LyricsClient {
 
     override val settingItems: List<Setting> = listOf(
         SettingSwitch(
@@ -369,18 +369,18 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         "https://accounts.google.com/v3/signin/identifier?dsh=S1527412391%3A1678373417598386&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den-GB%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F%253Fcbrd%253D1%26feature%3D__FEATURE__&hl=en-GB&ifkv=AWnogHfK4OXI8X1zVlVjzzjybvICXS4ojnbvzpE4Gn_Pfddw7fs3ERdfk-q3tRimJuoXjfofz6wuzg&ltmpl=music&passive=true&service=youtube&uilel=3&flowName=GlifWebSignIn&flowEntry=ServiceLogin".toRequest()
 
     override val loginWebViewStopUrlRegex = "https://music\\.youtube\\.com/.*".toRegex()
-    override suspend fun onLoginWebviewStop(url: String, cookie: String): List<User> {
-        if (!cookie.contains("SAPISID")) throw Exception("Login Failed, could not load SAPISID")
+    override suspend fun onLoginWebviewStop(url: String, data: String): List<User> {
+        if (!data.contains("SAPISID")) throw Exception("Login Failed, could not load SAPISID")
         val auth = run {
             val currentTime = System.currentTimeMillis() / 1000
-            val id = cookie.split("SAPISID=")[1].split(";")[0]
+            val id = data.split("SAPISID=")[1].split(";")[0]
             val str = "$currentTime $id https://music.youtube.com"
             val idHash = MessageDigest.getInstance("SHA-1").digest(str.toByteArray())
                 .joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
             "SAPISIDHASH ${currentTime}_${idHash}"
         }
         val headersMap = mutableMapOf(
-            "cookie" to cookie, "authorization" to auth
+            "cookie" to data, "authorization" to auth
         )
 
         val headers = headers {
@@ -391,7 +391,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
                 append("referer", "https://music.youtube.com/")
                 appendAll(headers)
             }
-        }.getArtists(cookie, auth)
+        }.getArtists(data, auth)
     }
 
 
