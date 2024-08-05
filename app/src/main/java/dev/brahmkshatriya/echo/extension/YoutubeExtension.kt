@@ -13,14 +13,13 @@ import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.ShareClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.clients.TrackerClient
-import dev.brahmkshatriya.echo.common.exceptions.LoginRequiredException
 import dev.brahmkshatriya.echo.common.helpers.Page
 import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
+import dev.brahmkshatriya.echo.common.models.ClientException
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
-import dev.brahmkshatriya.echo.common.models.ExtensionType
 import dev.brahmkshatriya.echo.common.models.Lyric
 import dev.brahmkshatriya.echo.common.models.Lyrics
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
@@ -181,6 +180,10 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         }
     }
 
+    override suspend fun deleteSearchHistory(query: QuickSearchItem.SearchQueryItem) {
+        TODO("Not yet implemented")
+    }
+
     override suspend fun quickSearch(query: String?) = query?.run {
         try {
             api.SearchSuggestions.getSearchSuggestions(this).getOrThrow()
@@ -285,6 +288,8 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         )
     }
 
+    override suspend fun radio(user: User) = throw IllegalAccessException()
+
     override suspend fun radio(playlist: Playlist): Playlist {
         val track = api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow().items?.lastOrNull()
             ?.toTrack(HIGH) ?: throw Exception("No tracks found")
@@ -369,6 +374,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         "https://accounts.google.com/v3/signin/identifier?dsh=S1527412391%3A1678373417598386&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den-GB%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F%253Fcbrd%253D1%26feature%3D__FEATURE__&hl=en-GB&ifkv=AWnogHfK4OXI8X1zVlVjzzjybvICXS4ojnbvzpE4Gn_Pfddw7fs3ERdfk-q3tRimJuoXjfofz6wuzg&ltmpl=music&passive=true&service=youtube&uilel=3&flowName=GlifWebSignIn&flowEntry=ServiceLogin".toRequest()
 
     override val loginWebViewStopUrlRegex = "https://music\\.youtube\\.com/.*".toRegex()
+
     override suspend fun onLoginWebviewStop(url: String, data: String): List<User> {
         if (!data.contains("SAPISID")) throw Exception("Login Failed, could not load SAPISID")
         val auth = run {
@@ -418,6 +424,17 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         api.user_auth_state = authenticationState
     }
 
+    override suspend fun getCurrentUser(): User? {
+        val headers = api.user_auth_state?.headers ?: return null
+        return api.client.request("https://music.youtube.com/getAccountSwitcherEndpoint") {
+            headers {
+                append("referer", "https://music.youtube.com/")
+                appendAll(headers)
+            }
+        }.getArtists("", "").firstOrNull()
+    }
+
+
     override suspend fun onMarkAsPlayed(clientId: String, context: EchoMediaItem?, track: Track) {
         api.user_auth_state?.MarkSongAsWatched?.markSongAsWatched(track.id)?.getOrThrow()
     }
@@ -441,11 +458,8 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         Tab("FEmusic_library_corpus_track_artists", "Artists")
     )
 
-    private val loginRequiredException =
-        LoginRequiredException("youtube-music", "Youtube Music", ExtensionType.MUSIC)
-
     override fun getLibraryFeed(tab: Tab?) = PagedData.Continuous<MediaItemsContainer> {
-        if (api.user_auth_state == null) throw loginRequiredException
+        if (api.user_auth_state == null) throw ClientException.LoginRequired()
         val browseId = tab?.id ?: "FEmusic_library_landing"
         val (result, ctoken) = libraryEndPoint.loadLibraryFeed(browseId, it)
         val data = result.mapNotNull { playlist ->
@@ -455,7 +469,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
     override suspend fun createPlaylist(title: String, description: String?): Playlist {
-        val auth = api.user_auth_state ?: throw loginRequiredException
+        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
         val playlistId =
             auth.CreateAccountPlaylist.createAccountPlaylist(title, description ?: "").getOrThrow()
         val playlist = api.LoadPlaylist.loadPlaylist(playlistId).getOrThrow()
@@ -463,19 +477,19 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
     override suspend fun deletePlaylist(playlist: Playlist) {
-        val auth = api.user_auth_state ?: throw loginRequiredException
+        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
         auth.DeleteAccountPlaylist.deleteAccountPlaylist(playlist.id).isSuccess
     }
 
     override suspend fun likeTrack(track: Track, liked: Boolean): Boolean {
         val likeStatus = if (liked) SongLikedStatus.LIKED else SongLikedStatus.NEUTRAL
-        val auth = api.user_auth_state ?: throw loginRequiredException
+        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
         auth.SetSongLiked.setSongLiked(track.id, likeStatus).getOrThrow()
         return liked
     }
 
     override suspend fun listEditablePlaylists(): List<Playlist> {
-        val auth = api.user_auth_state ?: throw loginRequiredException
+        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
         return auth.AccountPlaylists.getAccountPlaylists().getOrThrow().map {
             it.toPlaylist(auth.own_channel_id, thumbnailQuality)
         }
@@ -485,7 +499,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     override suspend fun editPlaylistMetadata(
         playlist: Playlist, title: String, description: String?
     ) {
-        val auth = api.user_auth_state ?: throw loginRequiredException
+        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
         val editor = auth.AccountPlaylistEditor.getEditor(playlist.id, listOf(), listOf())
         editor.performAndCommitActions(
             listOfNotNull(
@@ -498,7 +512,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     private suspend fun performAction(
         playlist: Playlist, tracks: List<Track>, actions: List<PlaylistEditor.Action>
     ): Boolean {
-        val auth = api.user_auth_state ?: throw loginRequiredException
+        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
         val ids = tracks.map { it.id }
         val sets = tracks.map { it.extras["setId"]!! }
         val editor = auth.AccountPlaylistEditor.getEditor(playlist.id, ids, sets)

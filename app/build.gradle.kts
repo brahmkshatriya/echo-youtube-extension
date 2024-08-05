@@ -62,12 +62,13 @@ android {
 }
 
 dependencies {
-    val libVersion = "38e1df03f6"
+    val libVersion = "3a588a2f9a"
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
     implementation("com.github.toasterofbread.ytm-kt:ytmkt-jvm:faa7e5257a")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
     val ktorVersion = "2.3.9"
     implementation("io.ktor:ktor-client-core:$ktorVersion")
     implementation("io.ktor:ktor-client-cio:$ktorVersion")
