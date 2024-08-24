@@ -9,6 +9,7 @@ import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.Track
+import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.ENGLISH
 import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.SINGLES
 import dev.brahmkshatriya.echo.extension.endpoints.GoogleAccountResponse
@@ -76,7 +77,7 @@ fun YtmPlaylist.toPlaylist(
         title = name ?: "Unknown",
         isEditable = owner_id != null && channelId == owner_id,
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
-        authors = artists?.map { it.toArtist(quality) } ?: emptyList(),
+        authors = artists?.map { it.toUser(quality) } ?: emptyList(),
         tracks = items?.size,
         description = description,
         subtitle = artists?.joinToString(", ") { it.name ?: "Unknown" } ?: year?.toString(),
@@ -154,12 +155,31 @@ fun YtmArtist.toArtist(
     )
 }
 
+fun YtmArtist.toUser(
+    quality: ThumbnailProvider.Quality,
+): User {
+    return User(
+        id = id,
+        name = name ?: "Unknown",
+        cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf())
+    )
+}
+
+fun User.toArtist(): Artist {
+    return Artist(
+        id = id,
+        name = name,
+        cover = cover,
+        extras = extras
+    )
+}
+
 
 private val jsonParser = Json { ignoreUnknownKeys = true }
-suspend fun HttpResponse.getArtists(
+suspend fun HttpResponse.getUsers(
     cookie: String,
     auth: String
 ) = bodyAsText().let {
     val trimmed = it.substringAfter(")]}'")
     jsonParser.decodeFromString<GoogleAccountResponse>(trimmed)
-}.getArtists(cookie, auth)
+}.getUsers(cookie, auth)

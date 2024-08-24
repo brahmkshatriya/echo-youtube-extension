@@ -2,6 +2,7 @@ package dev.brahmkshatriya.echo.extension
 
 import dev.brahmkshatriya.echo.common.clients.AlbumClient
 import dev.brahmkshatriya.echo.common.clients.ArtistClient
+import dev.brahmkshatriya.echo.common.clients.ArtistFollowClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
 import dev.brahmkshatriya.echo.common.clients.LibraryClient
@@ -62,7 +63,7 @@ import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchClient, RadioClient,
     AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView.Cookie, TrackerClient,
-    LibraryClient, ShareClient, LyricsClient {
+    LibraryClient, ShareClient, LyricsClient, ArtistFollowClient {
 
     override val settingItems: List<Setting> = listOf(
         SettingSwitch(
@@ -288,7 +289,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         )
     }
 
-    override suspend fun radio(user: User) = throw IllegalAccessException()
+    override suspend fun radio(user: User) = radio(user.toArtist())
 
     override suspend fun radio(playlist: Playlist): Playlist {
         val track = api.LoadPlaylist.loadPlaylist(playlist.id).getOrThrow().items?.lastOrNull()
@@ -397,7 +398,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
                 append("referer", "https://music.youtube.com/")
                 appendAll(headers)
             }
-        }.getArtists(data, auth)
+        }.getUsers(data, auth)
     }
 
 
@@ -431,7 +432,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
                 append("referer", "https://music.youtube.com/")
                 appendAll(headers)
             }
-        }.getArtists("", "").firstOrNull()
+        }.getUsers("", "").firstOrNull()
     }
 
 
@@ -547,7 +548,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
 
     override suspend fun onShare(track: Track) = "https://music.youtube.com/watch?v=${track.id}"
 
-    override suspend fun onShare(user: User) = throw IllegalAccessException()
+    override suspend fun onShare(user: User) = "https://music.youtube.com/channel/${user.id}"
 
     override fun searchTrackLyrics(clientId: String, track: Track) = PagedData.Single {
         val lyricsId = track.extras["lyricsId"] ?: return@Single listOf()
@@ -561,4 +562,11 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
     override suspend fun loadLyrics(small: Lyrics) = small
+    override suspend fun followArtist(artist: ArtistClient): Boolean {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun unfollowArtist(artist: ArtistClient): Boolean {
+        TODO("Not yet implemented")
+    }
 }

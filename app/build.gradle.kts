@@ -1,43 +1,48 @@
+import com.android.build.gradle.AppExtension
+import java.io.ByteArrayOutputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    kotlin("plugin.serialization") version "1.9.22"
+    id("com.github.johnrengelman.shadow") version "7.1.2"
+}
+
+val gitHash = execute("git", "rev-parse", "HEAD").take(7)
+val gitCount = execute("git", "rev-list", "--count", "HEAD").toInt()
+
+apply<EchoExtensionPlugin>()
+configure<EchoExtension> {
+    versionCode = gitCount
+    versionName = gitHash
+    extensionClass = "YoutubeExtension"
+    id = "youtube-music"
+    name = "Youtube Music"
+    description = "Youtube Music Extension for Echo, with the help of YTM-kt library."
+    author = "Echo"
+    iconUrl = "https://music.youtube.com/img/favicon_144.png"
+}
+
+dependencies {
+    implementation(project(":ext"))
+
+    //noinspection GradleDependency
+    compileOnly("org.slf4j:slf4j-api:1.7.36")
+    compileOnly("org.slf4j:slf4j-simple:1.7.36")
+    val libVersion: String by project
+    compileOnly("com.github.brahmkshatriya:echo:$libVersion")
 }
 
 android {
     namespace = "dev.brahmkshatriya.echo.extension"
     compileSdk = 34
-
     defaultConfig {
-        val extensionClass = "YoutubeExtension"
-        val id = "youtube-music"
-        val name = "Youtube Music"
-        val version = "1.0.0"
-        val description = "Youtube Music Extension for Echo, with the help of YTM-kt library."
-        val author = "Echo"
-        val iconUrl = "https://music.youtube.com/img/favicon_144.png"
-
         applicationId = "dev.brahmkshatriya.echo.extension.ytm"
         minSdk = 24
         targetSdk = 34
-
-        versionCode = 1
-        versionName = version
-
-        resValue("string", "app_name", "Echo : $name Extension")
-        resValue("string", "class_path", "$namespace.$extensionClass")
-        resValue("string", "name", name)
-        resValue("string", "id", id)
-        resValue("string", "version", version)
-        resValue("string", "description", description)
-        resValue("string", "author", author)
-        resValue("string", "icon_url", iconUrl)
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
-        release {
+        all {
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -45,37 +50,52 @@ android {
             )
         }
     }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
-    }
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
 
-    @Suppress("UnstableApiUsage")
-    testOptions {
-        unitTests {
-            this.isReturnDefaultValues = true
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+open class EchoExtension {
+    var extensionClass: String? = null
+    var id: String? = null
+    var name: String? = null
+    var description: String? = null
+    var author: String? = null
+    var iconUrl: String? = null
+    var versionCode: Int? = null
+    var versionName: String? = null
+}
+
+abstract class EchoExtensionPlugin : Plugin<Project> {
+    override fun apply(project: Project) {
+        val echoExtension = project.extensions.create("echoExtension", EchoExtension::class.java)
+        project.afterEvaluate {
+            project.extensions.configure<AppExtension>("android") {
+                defaultConfig.apply {
+                    with(echoExtension) {
+                        resValue("string", "id", id!!)
+                        resValue("string", "name", name!!)
+                        resValue("string", "app_name", "Echo : $name Extension")
+                        val extensionClass = extensionClass!!
+                        resValue("string", "class_path", "$namespace.$extensionClass")
+                        resValue("string", "version", versionName!!)
+                        resValue("string", "description", description!!)
+                        resValue("string", "author", author!!)
+                        iconUrl?.let { resValue("string", "icon_url", it) }
+                    }
+                }
+            }
         }
     }
 }
 
-dependencies {
-    val libVersion = "3a588a2f9a"
-    compileOnly("com.github.brahmkshatriya:echo:$libVersion")
-    implementation("com.github.toasterofbread.ytm-kt:ytmkt-jvm:faa7e5257a")
-
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-
-    val ktorVersion = "2.3.9"
-    implementation("io.ktor:ktor-client-core:$ktorVersion")
-    implementation("io.ktor:ktor-client-cio:$ktorVersion")
-    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
-
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1-Beta")
-    testImplementation("com.github.brahmkshatriya:echo:$libVersion")
+fun execute(vararg command: String): String {
+    val outputStream = ByteArrayOutputStream()
+    project.exec {
+        commandLine(*command)
+        standardOutput = outputStream
+    }
+    return outputStream.toString().trim()
 }

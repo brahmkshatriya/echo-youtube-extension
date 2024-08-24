@@ -18,3 +18,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Youtube Extension"
 include(":app")
+include(":ext")

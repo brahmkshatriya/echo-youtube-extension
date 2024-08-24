@@ -1,7 +1,7 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
-import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
+import dev.brahmkshatriya.echo.common.models.User
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -18,7 +18,7 @@ data class GoogleAccountResponse(
         }.flatten()
     }
 
-    fun getArtists(cookie: String, auth: String): List<Artist> {
+    fun getUsers(cookie: String, auth: String): List<User> {
         return getAccountList().mapNotNull {
             if (it.isDisabled == true) return@mapNotNull null
             val cover =
@@ -31,12 +31,11 @@ data class GoogleAccountResponse(
                 .find { token -> token.offlineCacheKeyToken != null }
                 ?.offlineCacheKeyToken?.clientCacheKey
 
-            Artist(
+            User(
                 if (channelId != null) "UC$channelId" else "",
                 it.accountName.simpleText,
                 cover,
-                mapOf("auth" to auth, "cookie" to cookie, "signInUrl" to signInUrl),
-                it.accountByline?.simpleText
+                mapOf("auth" to auth, "cookie" to cookie, "signInUrl" to signInUrl)
             )
         }
     }
