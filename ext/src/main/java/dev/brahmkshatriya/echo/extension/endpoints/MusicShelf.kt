@@ -137,6 +137,8 @@ data class MusicTwoRowItemRenderer(
                         year = subtitle?.runs?.find { it.text.length == 4 }?.text?.toIntOrNull()
                     )
                 }
+
+                null -> null
             }
         }
     }

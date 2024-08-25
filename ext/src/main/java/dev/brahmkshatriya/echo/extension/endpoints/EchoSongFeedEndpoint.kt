@@ -130,8 +130,8 @@ open class EchoSongFeedEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                             pageType != null && browseId != null -> {
                                 val mediaItem =
                                     YtmMediaItem.Type.fromBrowseEndpointType(pageType)
-                                        .itemFromId(browseId)
-                                MediaItemYoutubePage(mediaItem, browseEndpoint.params)
+                                        ?.itemFromId(browseId)
+                                mediaItem?.let { MediaItemYoutubePage(it, browseEndpoint.params) }
                             }
 
                             else -> null

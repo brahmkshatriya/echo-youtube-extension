@@ -42,6 +42,7 @@ import dev.brahmkshatriya.echo.extension.endpoints.EchoArtistMoreEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLibraryEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLyricsEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistEndpoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoSearchSuggestionsEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongRelatedEndpoint
@@ -54,6 +55,7 @@ import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.HIGH
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider.Quality.LOW
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
 import io.ktor.client.network.sockets.ConnectTimeoutException
+import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.headers
 import io.ktor.client.request.request
 import io.ktor.http.headers
@@ -100,6 +102,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     private val videoEndpoint = EchoVideoEndpoint(api)
     private val playlistEndPoint = EchoPlaylistEndpoint(api)
     private val lyricsEndPoint = EchoLyricsEndPoint(api)
+    private val searchSuggestionsEndpoint = EchoSearchSuggestionsEndpoint(api)
 
     companion object {
         const val ENGLISH = "en-GB"
@@ -182,7 +185,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
     override suspend fun deleteSearchHistory(query: QuickSearchItem.SearchQueryItem) {
-        TODO("Not yet implemented")
+        searchSuggestionsEndpoint.delete(query.query)
     }
 
     override suspend fun quickSearch(query: String?) = query?.run {
@@ -204,7 +207,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
                 it.first == query && (tab == null || tab.id == "All")
             }?.second
             if (old != null) return@Single old
-            val search = api.Search.searchMusic(query, tab?.id).getOrThrow()
+            val search = api.Search.search(query, tab?.id).getOrThrow()
             val list = search.categories.map { (itemLayout, _) ->
                 itemLayout.items.mapNotNull { item ->
                     item.toEchoMediaItem(api, false, thumbnailQuality)?.toMediaItemsContainer()
@@ -225,7 +228,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
 
     override suspend fun searchTabs(query: String?): List<Tab> {
         if (query != null) {
-            val search = api.Search.searchMusic(query, null).getOrThrow()
+            val search = api.Search.search(query, null).getOrThrow()
             oldSearch = query to search.categories.map { (itemLayout, _) ->
                 itemLayout.toMediaItemsContainer(api, SINGLES, thumbnailQuality)
             }
@@ -459,10 +462,26 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         Tab("FEmusic_library_corpus_track_artists", "Artists")
     )
 
-    override fun getLibraryFeed(tab: Tab?) = PagedData.Continuous<MediaItemsContainer> {
-        if (api.user_auth_state == null) throw ClientException.LoginRequired()
+    private suspend fun <T> withUserAuth(
+        block: suspend (auth: YoutubeiAuthenticationState) -> T
+    ): T {
+        val state = api.user_auth_state
+            ?: throw ClientException.LoginRequired()
+        return runCatching { block(state) }.getOrElse {
+            if (it is ClientRequestException) {
+                if (it.response.status.value == 401) {
+                    val user = state.own_channel_id
+                        ?: throw ClientException.LoginRequired()
+                    throw ClientException.Unauthorized(user)
+                }
+            }
+            throw it
+        }
+    }
+
+    override fun getLibraryFeed(tab: Tab?) = PagedData.Continuous<MediaItemsContainer> { cont ->
         val browseId = tab?.id ?: "FEmusic_library_landing"
-        val (result, ctoken) = libraryEndPoint.loadLibraryFeed(browseId, it)
+        val (result, ctoken) = withUserAuth { libraryEndPoint.loadLibraryFeed(browseId, cont) }
         val data = result.mapNotNull { playlist ->
             playlist.toEchoMediaItem(api, false, thumbnailQuality)?.toMediaItemsContainer()
         }
@@ -472,51 +491,55 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     override suspend fun createPlaylist(title: String, description: String?): Playlist {
         val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
         val playlistId =
-            auth.CreateAccountPlaylist.createAccountPlaylist(title, description ?: "").getOrThrow()
+            withUserAuth {
+                auth.CreateAccountPlaylist
+                    .createAccountPlaylist(title, description ?: "")
+                    .getOrThrow()
+            }
         val playlist = api.LoadPlaylist.loadPlaylist(playlistId).getOrThrow()
         return playlist.toPlaylist(auth.own_channel_id, HIGH)
     }
 
     override suspend fun deletePlaylist(playlist: Playlist) {
-        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
-        auth.DeleteAccountPlaylist.deleteAccountPlaylist(playlist.id).isSuccess
+        withUserAuth {
+            it.DeleteAccountPlaylist.deleteAccountPlaylist(playlist.id).isSuccess
+        }
+
     }
 
     override suspend fun likeTrack(track: Track, liked: Boolean): Boolean {
         val likeStatus = if (liked) SongLikedStatus.LIKED else SongLikedStatus.NEUTRAL
-        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
-        auth.SetSongLiked.setSongLiked(track.id, likeStatus).getOrThrow()
+        withUserAuth { it.SetSongLiked.setSongLiked(track.id, likeStatus).getOrThrow() }
         return liked
     }
 
-    override suspend fun listEditablePlaylists(): List<Playlist> {
-        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
-        return auth.AccountPlaylists.getAccountPlaylists().getOrThrow().map {
-            it.toPlaylist(auth.own_channel_id, thumbnailQuality)
+    override suspend fun listEditablePlaylists(): List<Playlist> = withUserAuth { auth ->
+        auth.AccountPlaylists.getAccountPlaylists().getOrThrow().mapNotNull {
+            if (it.id != "VLSE") it.toPlaylist(auth.own_channel_id, thumbnailQuality)
+            else null
         }
     }
-
 
     override suspend fun editPlaylistMetadata(
         playlist: Playlist, title: String, description: String?
     ) {
-        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
-        val editor = auth.AccountPlaylistEditor.getEditor(playlist.id, listOf(), listOf())
-        editor.performAndCommitActions(
-            listOfNotNull(
-                PlaylistEditor.Action.SetTitle(title),
-                description?.let { PlaylistEditor.Action.SetDescription(it) }
+        withUserAuth { auth ->
+            val editor = auth.AccountPlaylistEditor.getEditor(playlist.id, listOf(), listOf())
+            editor.performAndCommitActions(
+                listOfNotNull(
+                    PlaylistEditor.Action.SetTitle(title),
+                    description?.let { PlaylistEditor.Action.SetDescription(it) }
+                )
             )
-        )
+        }
     }
 
     private suspend fun performAction(
         playlist: Playlist, tracks: List<Track>, actions: List<PlaylistEditor.Action>
     ): Boolean {
-        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
         val ids = tracks.map { it.id }
         val sets = tracks.map { it.extras["setId"]!! }
-        val editor = auth.AccountPlaylistEditor.getEditor(playlist.id, ids, sets)
+        val editor = withUserAuth { it.AccountPlaylistEditor.getEditor(playlist.id, ids, sets) }
         val res = editor.performAndCommitActions(actions)
         return res.isSuccess
     }

@@ -9,6 +9,7 @@ import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmMediaItem
 import dev.toastbits.ytmkt.model.internal.HeaderRenderer
 import dev.toastbits.ytmkt.model.internal.MusicMultiRowListItemRenderer
+import dev.toastbits.ytmkt.model.internal.MusicResponsiveListItemRenderer
 import dev.toastbits.ytmkt.model.internal.TextRun
 import dev.toastbits.ytmkt.model.internal.TextRuns
 import dev.toastbits.ytmkt.radio.YoutubeiNextResponse
@@ -117,7 +118,7 @@ data class YoutubeiBrowseResponse(
         @Serializable
         data class YoutubeiShelfContentsItem(
             val musicTwoRowItemRenderer: MusicTwoRowItemRenderer?,
-            val musicResponsiveListItemRenderer: EchoMusicResponsiveListItemRenderer?,
+            val musicResponsiveListItemRenderer: MusicResponsiveListItemRenderer?,
             val musicMultiRowListItemRenderer: MusicMultiRowListItemRenderer?,
             val musicTwoColumnItemRenderer: MusicTwoColumnItemRenderer?
         ) {

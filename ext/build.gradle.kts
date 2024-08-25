@@ -2,7 +2,6 @@ plugins {
     id("java-library")
     id("org.jetbrains.kotlin.jvm")
     kotlin("plugin.serialization") version "1.9.22"
-    id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
 java {
@@ -14,11 +13,11 @@ java {
 dependencies {
     val libVersion by project.properties
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
-    implementation("com.github.toasterofbread.ytm-kt:ytmkt-jvm:faa7e5257a")
+    implementation("dev.toastbits.ytmkt:ytmkt:0.3.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
 
-    val ktorVersion = "2.3.9"
+    val ktorVersion = "3.0.0-beta-2"
     implementation("io.ktor:ktor-client-core:$ktorVersion")
     implementation("io.ktor:ktor-client-cio:$ktorVersion")
     implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")

@@ -32,7 +32,7 @@ open class EchoSongEndPoint(override val api: YoutubeiApi) : LoadSongEndpoint() 
     ): Result<YtmSong> = runCatching {
         val nextResponse: HttpResponse = api.client.request {
             endpointPath("next")
-            addApiHeadersWithAuthenticated()
+            addApiHeadersWithoutAuthentication()
             postWithBody {
                 put("enablePersistentPlaylistPanel", true)
                 put("isAudioOnly", true)

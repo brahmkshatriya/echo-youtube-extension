@@ -24,7 +24,7 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.Json
 
-fun MediaItemLayout.toMediaItemsContainer(
+suspend fun MediaItemLayout.toMediaItemsContainer(
     api: YoutubeiApi,
     language: String,
     quality: ThumbnailProvider.Quality
@@ -59,7 +59,10 @@ fun YtmMediaItem.toEchoMediaItem(
         is YtmSong -> EchoMediaItem.TrackItem(toTrack(quality))
         is YtmPlaylist -> when (type) {
             YtmPlaylist.Type.ALBUM -> EchoMediaItem.Lists.AlbumItem(toAlbum(single, quality))
-            else -> EchoMediaItem.Lists.PlaylistItem(toPlaylist(channelId, quality))
+            else -> {
+                if (id != "VLSE") EchoMediaItem.Lists.PlaylistItem(toPlaylist(channelId, quality))
+                else null
+            }
         }
 
         is YtmArtist -> toArtist(quality).let { EchoMediaItem.Profile.ArtistItem(it) }
