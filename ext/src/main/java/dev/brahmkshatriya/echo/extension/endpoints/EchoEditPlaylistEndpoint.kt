@@ -1,8 +1,11 @@
-package dev.brahmkshatriya.echo.extension
+package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.model.ApiEndpoint
+import io.ktor.client.call.body
 import io.ktor.client.request.request
+import io.ktor.client.statement.bodyAsText
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -12,11 +15,10 @@ class EchoEditPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
 
     sealed class Action {
         data class Add(val id: String) : Action()
-        data class Remove(val id: Int, val setId: String) : Action()
+        data class Remove(val id: String, val setId: String) : Action()
         data class Move(val setId: String, val aboveVideoSetId: String?) : Action()
     }
 
-    //TODO
     suspend fun editPlaylist(playlistId: String, actions: List<Action>) = run {
         api.client.request {
             endpointPath("browse/edit_playlist")
@@ -29,6 +31,9 @@ class EchoEditPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                     }
                 }
             }
+        }.let{
+            println(it.bodyAsText())
+            it.body<EditorResponse>()
         }
     }
 
@@ -54,4 +59,27 @@ class EchoEditPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
             }
         }
     }
+
+    @Serializable
+    data class EditorResponse (
+        val playlistEditResults: List<PlaylistEditResult>?
+    )
+
+    @Serializable
+    data class PlaylistEditResult (
+        val playlistEditVideoAddedResultData: PlaylistEditVideoAddedResultData
+    )
+
+    @Serializable
+    data class PlaylistEditVideoAddedResultData (
+        val videoId: String,
+        val setVideoId: String,
+        val multiSelectData: MultiSelectData
+    )
+
+    @Serializable
+    data class MultiSelectData (
+        val multiSelectParams: String,
+        val multiSelectItem: String
+    )
 }

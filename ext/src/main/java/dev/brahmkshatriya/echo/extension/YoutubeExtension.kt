@@ -39,6 +39,7 @@ import dev.brahmkshatriya.echo.common.settings.SettingSwitch
 import dev.brahmkshatriya.echo.common.settings.Settings
 import dev.brahmkshatriya.echo.extension.endpoints.EchoArtistEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoArtistMoreEndpoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoEditPlaylistEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLibraryEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoLyricsEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistEndpoint
@@ -88,7 +89,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
 
     override suspend fun onExtensionSelected() {}
 
-    private val api = YoutubeiApi()
+    val api = YoutubeiApi()
     private val thumbnailQuality
         get() = if (settings.getBoolean("high_quality") == true) HIGH else LOW
     private val language = ENGLISH
@@ -103,6 +104,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     private val playlistEndPoint = EchoPlaylistEndpoint(api)
     private val lyricsEndPoint = EchoLyricsEndPoint(api)
     private val searchSuggestionsEndpoint = EchoSearchSuggestionsEndpoint(api)
+    private val editorEndpoint = EchoEditPlaylistEndpoint(api)
 
     companion object {
         const val ENGLISH = "en-GB"
@@ -496,8 +498,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
                     .createAccountPlaylist(title, description ?: "")
                     .getOrThrow()
             }
-        val playlist = api.LoadPlaylist.loadPlaylist(playlistId).getOrThrow()
-        return playlist.toPlaylist(auth.own_channel_id, HIGH)
+        return loadPlaylist(Playlist(playlistId, "", true))
     }
 
     override suspend fun deletePlaylist(playlist: Playlist) {
@@ -534,32 +535,42 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         }
     }
 
-    private suspend fun performAction(
-        playlist: Playlist, tracks: List<Track>, actions: List<PlaylistEditor.Action>
-    ): Boolean {
-        val ids = tracks.map { it.id }
-        val sets = tracks.map { it.extras["setId"]!! }
-        val editor = withUserAuth { it.AccountPlaylistEditor.getEditor(playlist.id, ids, sets) }
-        val res = editor.performAndCommitActions(actions)
-        return res.isSuccess
-    }
-
     override suspend fun removeTracksFromPlaylist(
         playlist: Playlist, tracks: List<Track>, indexes: List<Int>
     ) {
-        performAction(playlist, tracks, indexes.map { PlaylistEditor.Action.Remove(it) })
+        val actions = indexes.map {
+            val track = tracks[it]
+            EchoEditPlaylistEndpoint.Action.Remove(track.id, track.extras["setId"]!!)
+        }
+        editorEndpoint.editPlaylist(playlist.id, actions)
     }
 
     override suspend fun addTracksToPlaylist(
         playlist: Playlist, tracks: List<Track>, index: Int, new: List<Track>
     ) {
-        performAction(playlist, tracks, new.map { PlaylistEditor.Action.Add(it.id, index) })
+        val actions = new.map { EchoEditPlaylistEndpoint.Action.Add(it.id) }
+        val setIds = editorEndpoint.editPlaylist(playlist.id, actions).playlistEditResults!!.map {
+            it.playlistEditVideoAddedResultData.setVideoId
+        }
+        val addBeforeTrack = tracks.getOrNull(index)?.extras?.get("setId") ?: return
+        val moveActions = setIds.map { setId ->
+            EchoEditPlaylistEndpoint.Action.Move(setId, addBeforeTrack)
+        }
+        editorEndpoint.editPlaylist(playlist.id, moveActions)
     }
 
     override suspend fun moveTrackInPlaylist(
         playlist: Playlist, tracks: List<Track>, fromIndex: Int, toIndex: Int
     ) {
-        performAction(playlist, tracks, listOf(PlaylistEditor.Action.Move(fromIndex, toIndex)))
+        val setId = tracks[fromIndex].extras["setId"]!!
+        val before = if (fromIndex - toIndex > 0) 0 else 1
+        val addBeforeTrack = tracks.getOrNull(toIndex + before)?.extras?.get("setId")
+            ?: return
+        editorEndpoint.editPlaylist(
+            playlist.id, listOf(
+                EchoEditPlaylistEndpoint.Action.Move(setId, addBeforeTrack)
+            )
+        )
     }
 
     override suspend fun onShare(album: Album) = "https://music.youtube.com/browse/${album.id}"
