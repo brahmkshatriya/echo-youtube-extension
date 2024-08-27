@@ -11,7 +11,7 @@ java {
 
 
 dependencies {
-    val libVersion by project.properties
+    val libVersion = "2fe748d7c8"
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
     implementation("dev.toastbits.ytmkt:ytmkt:0.3.1")
 

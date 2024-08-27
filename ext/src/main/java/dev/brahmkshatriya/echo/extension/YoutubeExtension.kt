@@ -14,6 +14,7 @@ import dev.brahmkshatriya.echo.common.clients.SearchClient
 import dev.brahmkshatriya.echo.common.clients.ShareClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.clients.TrackerClient
+import dev.brahmkshatriya.echo.common.clients.UserClient
 import dev.brahmkshatriya.echo.common.helpers.Page
 import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
@@ -65,7 +66,7 @@ import kotlinx.coroutines.coroutineScope
 import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchClient, RadioClient,
-    AlbumClient, ArtistClient, PlaylistClient, LoginClient.WebView.Cookie, TrackerClient,
+    AlbumClient, ArtistClient, UserClient, PlaylistClient, LoginClient.WebView.Cookie, TrackerClient,
     LibraryClient, ShareClient, LyricsClient, ArtistFollowClient {
 
     override val settingItems: List<Setting> = listOf(
@@ -348,6 +349,12 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         getArtistMediaItems(artist)
     }
 
+    override fun getMediaItems(it: User) = getMediaItems(it.toArtist())
+
+    override suspend fun loadUser(user: User): User {
+        loadArtist(user.toArtist())
+        return loadedArtist!!.toUser(HIGH)
+    }
 
     private var loadedArtist: YtmArtist? = null
     override suspend fun loadArtist(small: Artist): Artist {
@@ -596,11 +603,13 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
     override suspend fun loadLyrics(small: Lyrics) = small
-    override suspend fun followArtist(artist: ArtistClient): Boolean {
-        TODO("Not yet implemented")
+    override suspend fun followArtist(artist: Artist): Boolean {
+        withUserAuth { it.SetSubscribedToArtist.setSubscribedToArtist(artist.id, true) }
+        return true
     }
 
-    override suspend fun unfollowArtist(artist: ArtistClient): Boolean {
-        TODO("Not yet implemented")
+    override suspend fun unfollowArtist(artist: Artist): Boolean {
+        withUserAuth { it.SetSubscribedToArtist.setSubscribedToArtist(artist.id, false) }
+        return true
     }
 }
