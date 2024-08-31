@@ -4,8 +4,6 @@ package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.toastbits.ytmkt.endpoint.LoadSongEndpoint
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
-import dev.toastbits.ytmkt.itemcache.MediaItemCache
-import dev.toastbits.ytmkt.model.YtmApi
 import dev.toastbits.ytmkt.model.external.Thumbnail
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
@@ -39,26 +37,7 @@ open class EchoSongEndPoint(override val api: YoutubeiApi) : LoadSongEndpoint() 
                 put("videoId", song_id)
             }
         }
-        val song: YtmSong? = parseSongResponse(song_id, nextResponse, api).getOrNull()
-        if (song != null) {
-            return@runCatching song
-        }
-
-        val playerResponse: HttpResponse = api.client.request {
-            endpointPath("player")
-            addApiHeadersWithAuthenticated()
-            postWithBody {
-                put("videoId", song_id)
-            }
-        }
-        val videoData: PlayerData = playerResponse.body()
-        val videoDetails = videoData.videoDetails!!
-
-        return@runCatching YtmSong(
-            song_id,
-            name = videoDetails.title,
-            artists = listOf(YtmArtist(videoDetails.channelId)),
-        )
+        return@runCatching parseSongResponse(song_id, nextResponse, api).getOrThrow()
     }
 
     private suspend fun parseSongResponse(
@@ -86,7 +65,7 @@ open class EchoSongEndPoint(override val api: YoutubeiApi) : LoadSongEndpoint() 
         val title: String = video.title.first_text
         val liked = responseData.playerOverlays?.playerOverlayRenderer?.actions?.firstOrNull()?.likeButtonRenderer?.likeStatus == "LIKE"
 
-        val artists: List<YtmArtist>? = video.getArtists(api).getOrThrow()
+        val artists: List<YtmArtist>? = video.getArtists().getOrThrow()
         val album = video.getAlbum()
         val duration = parseYoutubeDurationString(video.lengthText.first_text, api.data_language)
 
@@ -299,7 +278,7 @@ data class YoutubeiNextResponse(
         val thumbnail: MusicThumbnailRenderer.RendererThumbnail,
         val badges: List<MusicResponsiveListItemRenderer.Badge>?
     ) {
-        suspend fun getArtists(api: YtmApi): Result<List<YtmArtist>?> = runCatching {
+        fun getArtists(): Result<List<YtmArtist>?> = runCatching {
             // Get artist IDs directly
             val artists: List<YtmArtist> = (longBylineText.runs.orEmpty() + title.runs.orEmpty())
                 .mapNotNull { run ->
@@ -326,38 +305,16 @@ data class YoutubeiNextResponse(
             val menu_artist: String? =
                 menu.menuRenderer.getArtist()?.menuNavigationItemRenderer?.navigationEndpoint?.browseEndpoint?.browseId
             if (menu_artist != null) {
-                return@runCatching listOf(YtmArtist(menu_artist))
-            }
-
-            // Get artist from album
-            for (run in longBylineText.runs!!) {
-                if (run.navigationEndpoint?.browseEndpoint?.getPageType() != "MUSIC_PAGE_TYPE_ALBUM") {
-                    continue
-                }
-
-                val playlist_id: String =
-                    run.navigationEndpoint?.browseEndpoint?.browseId ?: continue
-                val playlist: YtmPlaylist = api.item_cache.loadPlaylist(
-                    api,
-                    playlist_id,
-                    setOf(MediaItemCache.PlaylistKey.ARTIST_ID)
-                )
-
-                if (playlist.artists != null) {
-                    return@runCatching playlist.artists
-                }
-            }
-
-            // Get title-only artist (Resolves to 'Various artists' when viewed on YouTube)
-            val artist_title: TextRun? =
-                longBylineText.runs?.firstOrNull { it.navigationEndpoint == null }
-            if (artist_title != null) {
-                return@runCatching listOf(
-                    YtmArtist(
-                        id = "",
-                        name = artist_title.text
+                val artist_title: TextRun? =
+                    longBylineText.runs?.firstOrNull { it.navigationEndpoint == null }
+                if (artist_title != null) {
+                    return@runCatching listOf(
+                        YtmArtist(
+                            id = menu_artist,
+                            name = artist_title.text
+                        )
                     )
-                )
+                }
             }
 
             return@runCatching null

@@ -4,7 +4,6 @@ import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import io.ktor.client.call.body
 import io.ktor.client.request.request
-import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -21,20 +20,17 @@ class EchoEditPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
 
     suspend fun editPlaylist(playlistId: String, actions: List<Action>) = run {
         api.client.request {
-            endpointPath("browse/edit_playlist")
-            addApiHeadersWithAuthenticated()
-            postWithBody {
-                put("playlistId", playlistId.removePrefix("VL"))
-                putJsonArray("actions") {
-                    actions.forEach {
-                        add(getActionRequestData(it))
-                    }
+        endpointPath("browse/edit_playlist")
+        addApiHeadersWithAuthenticated()
+        postWithBody {
+            put("playlistId", playlistId.removePrefix("VL"))
+            putJsonArray("actions") {
+                actions.forEach {
+                    add(getActionRequestData(it))
                 }
             }
-        }.let{
-            println(it.bodyAsText())
-            it.body<EditorResponse>()
         }
+    }.body<EditorResponse>()
     }
 
     private fun getActionRequestData(action: Action): JsonObject {

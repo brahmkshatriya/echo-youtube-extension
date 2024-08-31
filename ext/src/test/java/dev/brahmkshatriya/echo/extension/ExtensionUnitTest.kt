@@ -145,7 +145,7 @@ class ExtensionUnitTest {
     @Test
     fun testTrackGet() = testIn("Testing Track Get") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
-        val search = Track("qeFt3fdsydA", "")
+        val search = Track("5XR7naZ_zZA", "")
         measureTimeMillis {
             val track = extension.loadTrack(search)
             println(track.liked)
@@ -155,12 +155,12 @@ class ExtensionUnitTest {
     @Test
     fun testTrackStream() = testIn("Testing Track Stream") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
-        val search = Track("wimxNdDBII4", "")
+        val search = Track("qeFt3fdsydA", "")
         measureTimeMillis {
             val track = extension.loadTrack(search)
             val streamable = track.audioStreamables.firstOrNull()
                 ?: error("Track is not streamable")
-            val stream = extension.getStreamableAudio(streamable)
+            val stream = extension.getStreamableMedia(streamable)
             println(stream)
         }.also { println("time : $it") }
     }
@@ -204,14 +204,10 @@ class ExtensionUnitTest {
     @Test
     fun testPlaylistMediaItems() = testIn("Testing Playlist Media Items") {
         if (extension !is PlaylistClient) error("PlaylistClient is not implemented")
-        val playlist =
-            extension.loadPlaylist(
-                Playlist(
-                    "PLSWY81108wBhKajj1EUuBr89ydg-DUjPy",
-                    "",
-                    false
-                )
-            )
+        val playlist = extension.loadPlaylist(
+            Playlist("OLAK5uy_mLltkrEdhQT30snXEjxSf1RZKqq1Zmadg", "", false)
+        )
+        println(playlist)
         val tracks = extension.loadTracks(playlist).loadFirst()
         tracks.forEach {
             println(it)

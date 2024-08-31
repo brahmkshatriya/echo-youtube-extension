@@ -499,8 +499,9 @@ data class PlayerStoryboardSpecRenderer(
 @Serializable
 data class StreamingData(
     val expiresInSeconds: String,
-    val formats: List<Format>?,
-    val adaptiveFormats: List<AdaptiveFormat>
+    val hlsManifestUrl: String,
+    val adaptiveFormats: List<AdaptiveFormat>,
+    val aspectRatio: Double
 )
 
 @Serializable

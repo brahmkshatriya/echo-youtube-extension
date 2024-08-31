@@ -1,5 +1,6 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
+import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistEndpoint.Companion.findSongCount
 import dev.toastbits.ytmkt.endpoint.SongFeedFilterChip
 import dev.toastbits.ytmkt.impl.youtubei.endpoint.ChipCloudRendererHeader
 import dev.toastbits.ytmkt.model.YtmApi
@@ -166,6 +167,7 @@ data class YoutubeiBrowseResponse(
         val year: Int?,
         val explicit: Boolean = false,
         val isEditable: Boolean = false,
+        val count: Int? = null
     )
 
     @Serializable
@@ -222,7 +224,8 @@ data class YoutubeiBrowseResponse(
                         )
                     } ?: emptyList(),
                     year = it.subtitle?.runs?.find { run -> run.text?.length == 4 }?.text?.toIntOrNull(),
-                    explicit = it.subtitleBadges?.any { badge -> badge.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE" } == true
+                    explicit = it.subtitleBadges?.any { badge -> badge.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE" } == true,
+                    count = it.menu?.menuRenderer?.title?.musicMenuTitleRenderer?.secondaryText?.runs?.findSongCount()
                 )
             }
             ?: musicEditablePlaylistDetailHeaderRenderer?.editHeader?.musicPlaylistEditHeaderRenderer?.let {
@@ -304,7 +307,7 @@ data class YoutubeiBrowseResponse(
 
     @Serializable
     data class SecondaryText(
-        val runs: List<SubtitleRun>? = null,
+        val runs: List<TextRun>? = null,
         val accessibility: Accessibility? = null
     )
 

@@ -3,6 +3,7 @@ package dev.brahmkshatriya.echo.extension.endpoints
 import dev.brahmkshatriya.echo.common.helpers.Page
 import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Track
+import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.SONGS
 import dev.brahmkshatriya.echo.extension.toTrack
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiPostBody
@@ -12,6 +13,7 @@ import dev.toastbits.ytmkt.model.external.ThumbnailProvider
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylistBuilder
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
+import dev.toastbits.ytmkt.model.internal.TextRun
 import dev.toastbits.ytmkt.radio.RadioContinuation
 import io.ktor.client.call.body
 import io.ktor.client.request.request
@@ -115,6 +117,12 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
     }
 
     companion object {
+        private val regex = Regex("(\\d+) $SONGS")
+        fun List<TextRun>.findSongCount(): Int? {
+            val count = this.firstOrNull { it.text.contains(SONGS) }?.text
+            val result = regex.find(count ?: return null)?.groupValues?.get(1)
+            return result?.toIntOrNull()
+        }
 
         suspend fun parsePlaylistResponse(
             playlistId: String,
@@ -132,21 +140,22 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                 builder.thumbnail_provider = playlistData.thumbnail
                 builder.artists = playlistData.artists
                 builder.year = playlistData.year
-                builder.owner_id =
-                    if (playlistData.isEditable) api.user_auth_state?.own_channel_id else null
+                builder.owner_id = playlistData.isEditable.toString()
+                builder.item_count = playlistData.count
             }
 
             val sectionListRenderer = parsed.contents?.run {
                 singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer
                     ?: twoColumnBrowseResultsRenderer?.secondaryContents?.sectionListRenderer
             }
-            val relatedId =
-                sectionListRenderer?.continuations?.firstOrNull()?.nextContinuationData?.continuation
 
             var continuationToken: String? = null
+            var count: Int? = null
             val items = sectionListRenderer?.contents?.mapNotNull { row ->
                 continuationToken =
                     row.musicPlaylistShelfRenderer?.continuations?.firstOrNull()?.nextContinuationData?.continuation
+                count =
+                    row.musicPlaylistShelfRenderer?.subFooter?.messageRenderer?.subtext?.messageSubtextRenderer?.text?.runs?.findSongCount()
                 row.getMediaItemsAndSetIds(hl, api)?.mapNotNull { (item, set) ->
                     if (item is YtmSong) item to set
                     else null
@@ -154,6 +163,7 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
             }?.flatten() ?: emptyList()
             builder.items = items.map { it.first }
             builder.item_set_ids = items.mapNotNull { it.second }
+            builder.item_count = builder.item_count ?: count
             builder.continuation = continuationToken?.let {
                 RadioContinuation(it, RadioContinuation.Type.PLAYLIST)
             }
@@ -170,6 +180,11 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                 builder.continuation =
                     cont?.let { RadioContinuation(it, RadioContinuation.Type.PLAYLIST) }
             }
+
+            var relatedId =
+                sectionListRenderer?.continuations?.firstOrNull()?.nextContinuationData?.continuation
+
+            relatedId = relatedId ?: items.lastOrNull()?.first?.id?.let { "id://$it" }
 
             builder.build() to relatedId
         }

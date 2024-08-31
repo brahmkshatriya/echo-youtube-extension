@@ -25,8 +25,6 @@ open class EchoSearchSuggestionsEndpoint(override val api: YoutubeiApi) : ApiEnd
             }
         }
 
-        println("suggestions : ${response.body<String>()}")
-
         val parsed: YoutubeiSearchSuggestionsResponse = response.body()
 
         val suggestions = parsed.getSuggestions(feedbackTokens)

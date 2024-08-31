@@ -60,7 +60,7 @@ fun YtmMediaItem.toEchoMediaItem(
         is YtmPlaylist -> when (type) {
             YtmPlaylist.Type.ALBUM -> EchoMediaItem.Lists.AlbumItem(toAlbum(single, quality))
             else -> {
-                if (id != "VLSE") EchoMediaItem.Lists.PlaylistItem(toPlaylist(channelId, quality))
+                if (id != "VLSE") EchoMediaItem.Lists.PlaylistItem(toPlaylist(quality))
                 else null
             }
         }
@@ -71,21 +71,21 @@ fun YtmMediaItem.toEchoMediaItem(
 }
 
 fun YtmPlaylist.toPlaylist(
-    channelId: String?, quality: ThumbnailProvider.Quality, related: String? = null
+    quality: ThumbnailProvider.Quality, related: String? = null
 ): Playlist {
     val extras = mutableMapOf<String, String>()
     related?.let { extras["relatedId"] = it }
     return Playlist(
         id = id,
         title = name ?: "Unknown",
-        isEditable = owner_id != null && channelId == owner_id,
+        isEditable = owner_id.toBoolean(),
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         authors = artists?.map { it.toUser(quality) } ?: emptyList(),
-        tracks = items?.size,
+        tracks = item_count,
+        duration = total_duration,
+        creationDate = year?.toString(),
         description = description,
         subtitle = artists?.joinToString(", ") { it.name ?: "Unknown" } ?: year?.toString(),
-        duration = total_duration ?: items?.sumOf { it.duration ?: 0 },
-        creationDate = year?.toString(),
         extras = extras,
     )
 }
@@ -121,7 +121,8 @@ fun YtmSong.toTrack(
         id = id,
         title = name ?: "Unknown",
         artists = artists?.map { it.toArtist(quality) } ?: emptyList(),
-        cover = getCover(id, quality),
+        cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(crop = true)
+            ?: getCover(id, quality),
         album = album,
         duration = duration,
         plays = null,
@@ -135,15 +136,10 @@ private fun getCover(
     id: String,
     quality: ThumbnailProvider.Quality
 ): ImageHolder.UrlRequestImageHolder {
-    return SongThumbnailProvider(id).getThumbnailUrl(quality).toImageHolder(crop = true)
-}
-
-data class SongThumbnailProvider(val id: String) : ThumbnailProvider {
-    override fun getThumbnailUrl(quality: ThumbnailProvider.Quality): String =
-        when (quality) {
-            ThumbnailProvider.Quality.LOW -> "https://img.youtube.com/vi/$id/mqdefault.jpg"
-            ThumbnailProvider.Quality.HIGH -> "https://img.youtube.com/vi/$id/maxresdefault.jpg"
-        }
+    return when (quality) {
+        ThumbnailProvider.Quality.LOW -> "https://img.youtube.com/vi/$id/mqdefault.jpg"
+        ThumbnailProvider.Quality.HIGH -> "https://img.youtube.com/vi/$id/maxresdefault.jpg"
+    }.toImageHolder(crop = true)
 }
 
 fun YtmArtist.toArtist(

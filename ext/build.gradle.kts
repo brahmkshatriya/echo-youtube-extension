@@ -1,7 +1,10 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 plugins {
     id("java-library")
     id("org.jetbrains.kotlin.jvm")
     kotlin("plugin.serialization") version "1.9.22"
+    id("com.gradleup.shadow") version "8.3.0"
 }
 
 java {
@@ -11,7 +14,7 @@ java {
 
 
 dependencies {
-    val libVersion = "2fe748d7c8"
+    val libVersion by project.properties
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
     implementation("dev.toastbits.ytmkt:ytmkt:0.3.1")
 
@@ -26,4 +29,10 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("com.github.brahmkshatriya:echo:$libVersion")
+}
+
+tasks {
+    val shadowJar by getting(ShadowJar::class) {
+        archiveBaseName.set("ytm")
+    }
 }

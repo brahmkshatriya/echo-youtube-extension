@@ -360,8 +360,30 @@ data class MusicTwoColumnItemRenderer(
 data class MusicPlaylistShelfRenderer(
     val playlistId: String? = null,
     val contents: List<YoutubeiBrowseResponse.YoutubeiShelf.YoutubeiShelfContentsItem>? = null,
-    val continuations: List<Continuation>? = null
+    val continuations: List<Continuation>? = null,
+    val subFooter: SubFooter? = null,
 ) {
+
+    @Serializable
+    data class SubFooter(
+        val messageRenderer: MessageRenderer
+    )
+
+    @Serializable
+    data class MessageRenderer(
+        val subtext: Subtext
+    )
+
+    @Serializable
+    data class Subtext(
+        val messageSubtextRenderer: MessageSubtextRenderer
+    )
+
+    @Serializable
+    data class MessageSubtextRenderer(
+        val text: TextRuns
+    )
+
     @Serializable
     data class Continuation(
         val nextContinuationData: NextContinuationData? = null

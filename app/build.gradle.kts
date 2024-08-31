@@ -4,7 +4,6 @@ import java.io.ByteArrayOutputStream
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
 val gitHash = execute("git", "rev-parse", "HEAD").take(7)
