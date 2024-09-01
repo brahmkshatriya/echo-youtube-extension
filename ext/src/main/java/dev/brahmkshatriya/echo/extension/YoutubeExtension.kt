@@ -543,21 +543,16 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
     override suspend fun createPlaylist(title: String, description: String?): Playlist {
-        val auth = api.user_auth_state ?: throw ClientException.LoginRequired()
-        val playlistId =
-            withUserAuth {
-                auth.CreateAccountPlaylist
-                    .createAccountPlaylist(title, description ?: "")
-                    .getOrThrow()
-            }
+        val playlistId = withUserAuth {
+            it.CreateAccountPlaylist
+                .createAccountPlaylist(title, description ?: "")
+                .getOrThrow()
+        }
         return loadPlaylist(Playlist(playlistId, "", true))
     }
 
-    override suspend fun deletePlaylist(playlist: Playlist) {
-        withUserAuth {
-            it.DeleteAccountPlaylist.deleteAccountPlaylist(playlist.id).isSuccess
-        }
-
+    override suspend fun deletePlaylist(playlist: Playlist) = withUserAuth {
+        it.DeleteAccountPlaylist.deleteAccountPlaylist(playlist.id).getOrThrow()
     }
 
     override suspend fun likeTrack(track: Track, liked: Boolean): Boolean {
