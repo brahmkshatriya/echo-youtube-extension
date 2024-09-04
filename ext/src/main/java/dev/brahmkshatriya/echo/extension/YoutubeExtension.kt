@@ -21,7 +21,6 @@ import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.ClientException
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
-import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.Lyric
 import dev.brahmkshatriya.echo.common.models.Lyrics
 import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
@@ -146,8 +145,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     override suspend fun getStreamableMedia(streamable: Streamable) = when (streamable.mediaType) {
         Streamable.MediaType.Audio -> streamable.id.toAudio().toMedia()
         Streamable.MediaType.Video -> streamable.id.toVideoMedia()
-        Streamable.MediaType.AudioVideo ->
-            throw IllegalArgumentException("AudioVideo not supported")
+        else -> throw IllegalArgumentException()
     }
 
 
@@ -171,7 +169,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         val video = deferred.await()
         val expiresAt =
             System.currentTimeMillis() + (video.streamingData.expiresInSeconds.toLong() * 1000)
-        val isMusic = video.streamingData.aspectRatio == 1.0
+        val isMusic = video.videoDetails.musicVideoType == "MUSIC_VIDEO_TYPE_ATV"
         val streamables = if (useMp4Format) video.streamingData.adaptiveFormats.mapNotNull {
             if (!it.mimeType.contains("audio")) return@mapNotNull null
             Streamable.audio(it.url, it.bitrate)
@@ -182,6 +180,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         }
         newTrack.copy(
             id = video.videoDetails.videoId,
+            description = video.microformat.microformatDataRenderer.description,
             artists = newTrack.artists.ifEmpty {
                 video.videoDetails.run { listOf(Artist(channelId, author)) }
             },
@@ -211,20 +210,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         }
     }
 
-
-    override fun getMediaItems(track: Track): PagedData<MediaItemsContainer> = PagedData.Single {
-        coroutineScope {
-            val album = track.album?.let {
-                async { listOf(loadAlbum(it).toMediaItem().toMediaItemsContainer()) }
-            } ?: async { listOf() }
-            val artists = async {
-                track.artists.map { loadArtist(it).toMediaItem().toMediaItemsContainer() }
-            }
-            val related = loadRelated(track)
-            album.await() + artists.await() + related
-        }
-    }
-
+    override fun getMediaItems(track: Track) = PagedData.Single { loadRelated(track) }
 
     override suspend fun deleteSearchHistory(query: QuickSearchItem.SearchQueryItem) {
         searchSuggestionsEndpoint.delete(query.query)
@@ -348,9 +334,9 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
             ?: emptyList()
     }
 
-    override suspend fun loadAlbum(small: Album): Album {
+    override suspend fun loadAlbum(album: Album): Album {
         val (ytmPlaylist, _, data) = playlistEndPoint.loadFromPlaylist(
-            small.id, null, thumbnailQuality
+            album.id, null, thumbnailQuality
         )
         trackMap[ytmPlaylist.id] = data
         return ytmPlaylist.toAlbum(false, HIGH)

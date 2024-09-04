@@ -17,7 +17,7 @@ java {
 dependencies {
     val libVersion by project.properties
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
-    implementation("dev.toastbits.ytmkt:ytmkt:0.3.1")
+    implementation("dev.toastbits.ytmkt:ytmkt:0.3.2")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
 
