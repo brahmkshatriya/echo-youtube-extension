@@ -164,23 +164,23 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
     override suspend fun loadTrack(track: Track) = coroutineScope {
-        val deferred = async { videoEndpoint.getVideo(track.id).getOrThrow() }
+        val deferred = async { videoEndpoint.getVideo(track.id) }
         var newTrack = songEndPoint.loadSong(track.id).getOrThrow().toTrack(HIGH)
-        val video = deferred.await()
+        val (video, desc) = deferred.await()
         val expiresAt =
             System.currentTimeMillis() + (video.streamingData.expiresInSeconds.toLong() * 1000)
         val isMusic = video.videoDetails.musicVideoType == "MUSIC_VIDEO_TYPE_ATV"
         val streamables = if (useMp4Format) video.streamingData.adaptiveFormats.mapNotNull {
             if (!it.mimeType.contains("audio")) return@mapNotNull null
-            Streamable.audio(it.url, it.bitrate)
-        } else getHlsStreams(video.streamingData.hlsManifestUrl, isMusic)
+            Streamable.audio(it.url!!, it.bitrate)
+        } else getHlsStreams(video.streamingData.hlsManifestUrl!!, isMusic)
         if (resolveMusicForVideos && !isMusic) {
             val result = searchSongForVideo(newTrack)
             newTrack = result ?: newTrack
         }
         newTrack.copy(
             id = video.videoDetails.videoId,
-            description = video.microformat.microformatDataRenderer.description,
+            description = desc,
             artists = newTrack.artists.ifEmpty {
                 video.videoDetails.run { listOf(Artist(channelId, author)) }
             },

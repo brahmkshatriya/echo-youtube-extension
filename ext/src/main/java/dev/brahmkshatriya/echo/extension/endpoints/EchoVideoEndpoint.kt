@@ -1,31 +1,47 @@
-@file:Suppress("unused", "SpellCheckingInspection")
+@file:Suppress("unused")
 
 package dev.brahmkshatriya.echo.extension.endpoints
 
+import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
+import dev.toastbits.ytmkt.impl.youtubei.YoutubeiPostBody
 import dev.toastbits.ytmkt.model.ApiEndpoint
-import dev.toastbits.ytmkt.model.YtmApi
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
-import kotlinx.serialization.ExperimentalSerializationApi
+import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-class EchoVideoEndpoint(override val api: YtmApi) : ApiEndpoint() {
+class EchoVideoEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
 
-    @OptIn(ExperimentalSerializationApi::class)
-    suspend fun getVideo(id: String) = runCatching {
-        val response: HttpResponse = api.client.request {
+    private suspend fun request(
+        context: JsonObject,
+        id: String,
+        playlist: String? = null
+    ): HttpResponse {
+        return api.client.request {
             endpointPath("player")
             addApiHeadersWithAuthenticated()
             postWithBody(context) {
                 put("videoId", id)
-                put("playlistId", null)
+                put("playlistId", playlist)
             }
+        }.also { println(it.bodyAsText()) }
+    }
+
+    suspend fun getVideo(id: String, playlist: String? = null) = coroutineScope {
+        val desc = async {
+            request(YoutubeiPostBody.WEB.getPostBody(api), id, playlist)
+                .body<YoutubeFormatResponse>()
+                .microformat!!.playerMicroformatRenderer.description.simpleText
         }
-        return@runCatching response.body<YoutubeFormatResponse>()
+        val response = request(context, id, playlist)
+        response.body<YoutubeFormatResponse>() to desc.await()
     }
 
     private val context = buildJsonObject {
@@ -42,7 +58,7 @@ class EchoVideoEndpoint(override val api: YtmApi) : ApiEndpoint() {
 data class YoutubeFormatResponse(
     val streamingData: StreamingData,
     val videoDetails: VideoDetails,
-    val microformat: Microformat
+    val microformat: Microformat? = null
 )
 
 @Serializable
@@ -328,15 +344,14 @@ data class PlayerStoryboardSpecRenderer(
 @Serializable
 data class StreamingData(
     val expiresInSeconds: String,
-    val hlsManifestUrl: String,
-    val adaptiveFormats: List<AdaptiveFormat>,
-    val aspectRatio: Double
+    val hlsManifestUrl: String?,
+    val adaptiveFormats: List<AdaptiveFormat>
 )
 
 @Serializable
 data class AdaptiveFormat(
     val itag: Long? = null,
-    val url: String,
+    val url: String? = null,
     val mimeType: String,
     val bitrate: Int,
     val width: Long? = null,
@@ -429,58 +444,43 @@ data class ThumbnailElement(
 
 @Serializable
 data class Microformat (
-    val microformatDataRenderer: MicroformatDataRenderer
+    val playerMicroformatRenderer: PlayerMicroformatRenderer
 )
 
 @Serializable
-data class MicroformatDataRenderer (
-    val urlCanonical: String,
-    val title: String,
-    val description: String,
-    val thumbnail: MicroformatDataRendererThumbnail,
-    val siteName: String,
-    val appName: String,
-    val androidPackage: String,
-    val iosAppStoreId: String,
-    val iosAppArguments: String,
-    val ogType: String,
-    val urlApplinksIos: String,
-    val urlApplinksAndroid: String,
-    val urlTwitterIos: String,
-    val urlTwitterAndroid: String,
-    val twitterCardType: String,
-    val twitterSiteHandle: String,
-    val schemaDotOrgType: String,
-    val noindex: Boolean,
-    val unlisted: Boolean,
-    val paid: Boolean,
-    val familySafe: Boolean,
-    val tags: List<String>,
-    val availableCountries: List<String>,
-    val pageOwnerDetails: PageOwnerDetails,
-    val videoDetails: VideoDetails,
-    val linkAlternates: List<LinkAlternate>,
-    val viewCount: String,
-    val publishDate: String,
-    val category: String,
-    val uploadDate: String
-)
-
-@Serializable
-data class LinkAlternate (
-    val hrefUrl: String,
-    val title: String? = null,
-    val alternateType: String? = null
-)
-
-@Serializable
-data class PageOwnerDetails (
-    val name: String,
+data class PlayerMicroformatRenderer (
+    val thumbnail: PlayerMicroformatRendererThumbnail,
+    val embed: Embed,
+    val title: Description,
+    val description: Description,
+    val lengthSeconds: String,
+    val ownerProfileUrl: String,
     val externalChannelId: String,
-    val youtubeProfileUrl: String
+    val isFamilySafe: Boolean,
+    val availableCountries: List<String>,
+    val isUnlisted: Boolean,
+    val hasYpcMetadata: Boolean,
+    val viewCount: String,
+    val category: String,
+    val publishDate: String,
+    val ownerChannelName: String,
+    val uploadDate: String,
+    val isShortsEligible: Boolean
 )
 
 @Serializable
-data class MicroformatDataRendererThumbnail (
+data class Description (
+    val simpleText: String
+)
+
+@Serializable
+data class Embed (
+    val iframeUrl: String,
+    val width: Long,
+    val height: Long
+)
+
+@Serializable
+data class PlayerMicroformatRendererThumbnail (
     val thumbnails: List<ThumbnailElement>
 )
