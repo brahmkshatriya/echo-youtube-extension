@@ -1,6 +1,6 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
-import dev.brahmkshatriya.echo.common.models.QuickSearchItem
+import dev.brahmkshatriya.echo.common.models.QuickSearch
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import io.ktor.client.call.body
@@ -16,7 +16,7 @@ open class EchoSearchSuggestionsEndpoint(override val api: YoutubeiApi) : ApiEnd
     private val feedbackTokens = mutableMapOf<String, String>()
     suspend fun get(
         query: String
-    ): Result<List<QuickSearchItem>> = runCatching {
+    ): Result<List<QuickSearch>> = runCatching {
         val response: HttpResponse = api.client.request {
             endpointPath("music/get_search_suggestions")
             addApiHeadersWithAuthenticated()
@@ -58,12 +58,12 @@ private data class YoutubeiSearchSuggestionsResponse(
         ?.contents
         ?.mapNotNull { suggestion ->
             if (suggestion.searchSuggestionRenderer != null) {
-                return@mapNotNull QuickSearchItem.SearchQueryItem(
+                return@mapNotNull QuickSearch.QueryItem(
                     suggestion.searchSuggestionRenderer.navigationEndpoint.searchEndpoint.query,
                     false
                 )
             } else if (suggestion.historySuggestionRenderer != null) {
-                return@mapNotNull QuickSearchItem.SearchQueryItem(
+                return@mapNotNull QuickSearch.QueryItem(
                     suggestion.historySuggestionRenderer.navigationEndpoint.searchEndpoint.query,
                     true
                 ).also { item ->

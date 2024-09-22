@@ -6,8 +6,8 @@ import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.ImageHolder
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
-import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
 import dev.brahmkshatriya.echo.common.models.Playlist
+import dev.brahmkshatriya.echo.common.models.Shelf
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.extension.YoutubeExtension.Companion.ENGLISH
@@ -24,25 +24,24 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.Json
 
-suspend fun MediaItemLayout.toMediaItemsContainer(
+suspend fun MediaItemLayout.toShelf(
     api: YoutubeiApi,
     language: String,
     quality: ThumbnailProvider.Quality
-): MediaItemsContainer {
-    val s = title?.getString(ENGLISH)
-    val single = s == SINGLES
-    return MediaItemsContainer.Category(
+): Shelf {
+    val single = title?.getString(ENGLISH) == SINGLES
+    return Shelf.Lists.Items(
         title = title?.getString(language) ?: "Unknown",
         subtitle = subtitle?.getString(language),
         list = items.mapNotNull { item ->
-            item.toEchoMediaItem(api, single, quality)
+            item.toEchoMediaItem(single, quality)
         },
         more = view_more?.getBrowseParamsData()?.browse_id?.let { id ->
             PagedData.Single {
                 val rows =
                     api.GenericFeedViewMorePage.getGenericFeedViewMorePage(id).getOrThrow()
                 rows.mapNotNull { itemLayout ->
-                    itemLayout.toEchoMediaItem(api, single, quality)
+                    itemLayout.toEchoMediaItem(single, quality)
                 }
             }
         }
@@ -50,11 +49,9 @@ suspend fun MediaItemLayout.toMediaItemsContainer(
 }
 
 fun YtmMediaItem.toEchoMediaItem(
-    api: YoutubeiApi,
     single: Boolean,
     quality: ThumbnailProvider.Quality
 ): EchoMediaItem? {
-    val channelId = api.user_auth_state?.own_channel_id
     return when (this) {
         is YtmSong -> EchoMediaItem.TrackItem(toTrack(quality))
         is YtmPlaylist -> when (type) {
@@ -114,8 +111,6 @@ fun YtmSong.toTrack(
 ): Track {
     val album = album?.toAlbum(false, quality)
     val extras = mutableMapOf<String, String>()
-    related_browse_id?.let { extras["relatedId"] = it }
-    lyrics_browse_id?.let { extras["lyricsId"] = it }
     setId?.let { extras["setId"] = it }
     return Track(
         id = id,
@@ -127,7 +122,7 @@ fun YtmSong.toTrack(
         duration = duration,
         plays = null,
         releaseDate = album?.releaseDate,
-        liked = is_explicit,
+        isLiked = is_explicit,
         extras = extras,
     )
 }
@@ -174,11 +169,11 @@ fun User.toArtist(): Artist {
 }
 
 
-private val jsonParser = Json { ignoreUnknownKeys = true }
+val json = Json { ignoreUnknownKeys = true }
 suspend fun HttpResponse.getUsers(
     cookie: String,
     auth: String
 ) = bodyAsText().let {
     val trimmed = it.substringAfter(")]}'")
-    jsonParser.decodeFromString<GoogleAccountResponse>(trimmed)
+    json.decodeFromString<GoogleAccountResponse>(trimmed)
 }.getUsers(cookie, auth)

@@ -2,14 +2,17 @@
 
 package dev.brahmkshatriya.echo.extension.endpoints
 
-import dev.toastbits.ytmkt.endpoint.LoadSongEndpoint
+import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
+import dev.brahmkshatriya.echo.common.models.Track
+import dev.brahmkshatriya.echo.extension.toAlbum
+import dev.brahmkshatriya.echo.extension.toArtist
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
+import dev.toastbits.ytmkt.model.ApiEndpoint
 import dev.toastbits.ytmkt.model.external.Thumbnail
 import dev.toastbits.ytmkt.model.external.ThumbnailProvider
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmArtist
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmMediaItem
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmPlaylist
-import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
 import dev.toastbits.ytmkt.model.internal.BrowseEndpoint
 import dev.toastbits.ytmkt.model.internal.MusicResponsiveListItemRenderer
 import dev.toastbits.ytmkt.model.internal.MusicThumbnailRenderer
@@ -24,10 +27,10 @@ import io.ktor.client.statement.HttpResponse
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.put
 
-open class EchoSongEndPoint(override val api: YoutubeiApi) : LoadSongEndpoint() {
-    override suspend fun loadSong(
+open class EchoSongEndPoint(override val api: YoutubeiApi) : ApiEndpoint() {
+    suspend fun loadSong(
         @Suppress("LocalVariableName") song_id: String
-    ): Result<YtmSong> = runCatching {
+    ): Result<Track> = runCatching {
         val nextResponse: HttpResponse = api.client.request {
             endpointPath("next")
             addApiHeadersWithoutAuthentication()
@@ -63,22 +66,27 @@ open class EchoSongEndPoint(override val api: YoutubeiApi) : LoadSongEndpoint() 
             tabs[0].tabRenderer.content!!.musicQueueRenderer.content!!.playlistPanelRenderer.contents.first().playlistPanelVideoRenderer!!
 
         val title: String = video.title.first_text
-        val liked = responseData.playerOverlays?.playerOverlayRenderer?.actions?.firstOrNull()?.likeButtonRenderer?.likeStatus == "LIKE"
+        val liked =
+            responseData.playerOverlays?.playerOverlayRenderer?.actions?.firstOrNull()?.likeButtonRenderer?.likeStatus == "LIKE"
 
-        val artists: List<YtmArtist>? = video.getArtists().getOrThrow()
+        val artists: List<YtmArtist> = video.getArtists().getOrThrow() ?: emptyList()
         val album = video.getAlbum()
         val duration = parseYoutubeDurationString(video.lengthText.first_text, api.data_language)
 
-        return@runCatching YtmSong(
+        val cover = ThumbnailProvider.fromThumbnails(video.thumbnail.thumbnails)
+            ?.getThumbnailUrl(ThumbnailProvider.Quality.HIGH)?.toImageHolder()
+        return@runCatching Track(
             id = songId,
-            thumbnail_provider = ThumbnailProvider.fromThumbnails(video.thumbnail.thumbnails),
-            artists = artists,
-            album = album,
-            name = title,
+            title = title,
+            cover = cover,
+            artists = artists.map { it.toArtist(ThumbnailProvider.Quality.HIGH) },
+            album = album?.toAlbum(false, ThumbnailProvider.Quality.HIGH),
             duration = duration,
-            is_explicit = liked,
-            lyrics_browse_id = lyricsBrowseId,
-            related_browse_id = relatedBrowseId,
+            isLiked = liked,
+            extras = mutableMapOf<String, String>().apply {
+                relatedBrowseId?.let { put("relatedId", it) }
+                lyricsBrowseId?.let { put("lyricsId", it) }
+            },
         )
     }
 }

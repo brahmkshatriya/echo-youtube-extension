@@ -10,31 +10,37 @@ data class GoogleAccountResponse(
     val data: Data
 ) {
 
-    private fun getAccountList(): List<AccountItem> {
-        return data.actions[0].getMultiPageMenuAction.menu.multiPageMenuRenderer.sections[0].accountSectionListRenderer.contents.map {
-            it.accountItemSectionRenderer.contents.mapNotNull { content ->
-                content.accountItem
+    private fun getAccountList(): List<Pair<String?, AccountItem>> {
+        return data.actions[0].getMultiPageMenuAction.menu.multiPageMenuRenderer.sections[0].accountSectionListRenderer.run {
+            contents.map {
+                it.accountItemSectionRenderer.contents.mapNotNull { content ->
+                    content.accountItem
+                }
+            }.flatten().map {
+                header.googleAccountHeaderRenderer?.email?.simpleText to it
             }
-        }.flatten()
+        }
     }
 
     fun getUsers(cookie: String, auth: String): List<User> {
         return getAccountList().mapNotNull {
-            if (it.isDisabled == true) return@mapNotNull null
+            val (email, item) = it
+            if (item.isDisabled == true) return@mapNotNull null
             val cover =
-                it.accountPhoto?.thumbnails?.firstOrNull()?.url?.toImageHolder()
+                item.accountPhoto?.thumbnails?.firstOrNull()?.url?.toImageHolder()
             val signInUrl =
-                it.serviceEndpoint?.selectActiveIdentityEndpoint?.supportedTokens
+                item.serviceEndpoint?.selectActiveIdentityEndpoint?.supportedTokens
                     ?.find { token -> token.accountSigninToken != null }
                     ?.accountSigninToken?.signinUrl ?: return@mapNotNull null
-            val channelId = it.serviceEndpoint.selectActiveIdentityEndpoint.supportedTokens
+            val channelId = item.serviceEndpoint.selectActiveIdentityEndpoint.supportedTokens
                 .find { token -> token.offlineCacheKeyToken != null }
                 ?.offlineCacheKeyToken?.clientCacheKey
 
             User(
                 if (channelId != null) "UC$channelId" else "",
-                it.accountName.simpleText,
+                item.accountName.simpleText,
                 cover,
+                email,
                 mapOf("auth" to auth, "cookie" to cookie, "signInUrl" to signInUrl)
             )
         }
@@ -42,8 +48,6 @@ data class GoogleAccountResponse(
 
     @Serializable
     data class Data(
-        val responseContext: ResponseContext? = null,
-        val selectText: SelectText? = null,
         val actions: List<Action>
     )
 
@@ -88,7 +92,7 @@ data class GoogleAccountResponse(
     @Serializable
     data class ItemCompactLinkRenderer(
         val icon: Icon? = null,
-        val title: SelectText? = null,
+        val title: Title? = null,
         val navigationEndpoint: PurpleNavigationEndpoint? = null,
         val style: String? = null
     )
@@ -128,7 +132,7 @@ data class GoogleAccountResponse(
     )
 
     @Serializable
-    data class SelectText(
+    data class Title(
         val simpleText: String
     )
 
@@ -140,7 +144,7 @@ data class GoogleAccountResponse(
     @Serializable
     data class SimpleMenuHeaderRenderer(
         val backButton: BackButton? = null,
-        val title: SelectText? = null
+        val title: Title? = null
     )
 
     @Serializable
@@ -176,7 +180,7 @@ data class GoogleAccountResponse(
     @Serializable
     data class AccountSectionListRenderer(
         val contents: List<AccountSectionListRendererContent>,
-        val header: AccountSectionListRendererHeader? = null
+        val header: AccountSectionListRendererHeader
     )
 
     @Serializable
@@ -197,17 +201,15 @@ data class GoogleAccountResponse(
 
     @Serializable
     data class AccountItem(
-        val accountName: SelectText,
+        val accountName: Title,
         val accountPhoto: AccountPhoto? = null,
         val isSelected: Boolean? = null,
         val isDisabled: Boolean? = null,
-        val mobileBanner: AccountPhoto? = null,
         val hasChannel: Boolean? = null,
         val serviceEndpoint: ServiceEndpoint? = null,
-        val accountByline: SelectText? = null,
-        val unlimitedStatus: List<SelectText>? = null,
-        val channelHandle: SelectText? = null,
-        val channelDelegationRole: String? = null
+        val accountByline: Title? = null,
+        val unlimitedStatus: List<Title>? = null,
+        val channelHandle: Title? = null
     )
 
     @Serializable
@@ -271,7 +273,7 @@ data class GoogleAccountResponse(
 
     @Serializable
     data class ContentCompactLinkRenderer(
-        val title: SelectText? = null,
+        val title: Title? = null,
         val navigationEndpoint: FluffyNavigationEndpoint? = null
     )
 
@@ -293,39 +295,7 @@ data class GoogleAccountResponse(
 
     @Serializable
     data class GoogleAccountHeaderRenderer(
-        val name: SelectText? = null,
-        val email: SelectText? = null
+        val name: Title? = null,
+        val email: Title? = null
     )
-
-    @Serializable
-    data class ResponseContext(
-        val serviceTrackingParams: List<ServiceTrackingParam>? = null,
-        val mainAppWebResponseContext: MainAppWebResponseContext? = null,
-        val webResponseContextExtensionData: WebResponseContextExtensionData? = null
-    )
-
-    @Serializable
-    data class MainAppWebResponseContext(
-        val datasyncId: String? = null,
-        val loggedOut: Boolean? = null,
-        val trackingParam: String? = null
-    )
-
-    @Serializable
-    data class ServiceTrackingParam(
-        val service: String? = null,
-        val params: List<Param>? = null
-    )
-
-    @Serializable
-    data class Param(
-        val key: String? = null,
-        val value: String? = null
-    )
-
-    @Serializable
-    data class WebResponseContextExtensionData(
-        val hasDecorated: Boolean? = null
-    )
-
 }

@@ -12,8 +12,9 @@ import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
-import dev.brahmkshatriya.echo.common.models.MediaItemsContainer
+import dev.brahmkshatriya.echo.common.models.EchoMediaItem.Companion.toMediaItem
 import dev.brahmkshatriya.echo.common.models.Playlist
+import dev.brahmkshatriya.echo.common.models.Shelf
 import dev.brahmkshatriya.echo.common.models.Track
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -133,8 +134,9 @@ class ExtensionUnitTest {
         val items = extension.searchFeed(query, null).loadFirst()
         val track = items.firstNotNullOfOrNull {
             val item = when (it) {
-                is MediaItemsContainer.Item -> it.media
-                is MediaItemsContainer.Category -> it.list.firstOrNull()
+                is Shelf.Item -> it.media
+                is Shelf.Lists.Items -> it.list.firstOrNull()
+                is Shelf.Lists.Tracks -> it.list.firstOrNull()?.toMediaItem()
                 else -> null
             }
             (item as? EchoMediaItem.TrackItem)?.track
@@ -148,7 +150,7 @@ class ExtensionUnitTest {
         val search = Track("5XR7naZ_zZA", "")
         measureTimeMillis {
             val track = extension.loadTrack(search)
-            println(track.liked)
+            println(track.isLiked)
         }.also { println("time : $it") }
     }
 
@@ -170,7 +172,7 @@ class ExtensionUnitTest {
         if (extension !is TrackClient) error("TrackClient is not implemented")
         if (extension !is RadioClient) error("RadioClient is not implemented")
         val track = extension.loadTrack(searchTrack())
-        val radio = extension.radio(track)
+        val radio = extension.radio(track, null)
         val radioTracks = extension.loadTracks(radio).loadFirst()
         radioTracks.forEach {
             println(it)
@@ -181,7 +183,7 @@ class ExtensionUnitTest {
     fun testTrackMediaItems() = testIn("Testing Track Media Items") {
         if (extension !is TrackClient) error("TrackClient is not implemented")
         val track = extension.loadTrack(Track("iDkSRTBDxJY", ""))
-        val mediaItems = extension.getMediaItems(track).loadFirst()
+        val mediaItems = extension.getShelves(track).loadFirst()
         mediaItems.forEach {
             println(it)
         }
@@ -212,7 +214,7 @@ class ExtensionUnitTest {
         tracks.forEach {
             println(it)
         }
-        val mediaItems = extension.getMediaItems(playlist).loadFirst()
+        val mediaItems = extension.getShelves(playlist).loadFirst()
         mediaItems.forEach {
             println(it)
         }
@@ -224,9 +226,9 @@ class ExtensionUnitTest {
         if (extension !is ArtistClient) error("ArtistClient is not implemented")
         val artist = extension.loadArtist(small)
         println(artist)
-        val mediaItems = extension.getMediaItems(artist).loadFirst()
+        val mediaItems = extension.getShelves(artist).loadFirst()
         mediaItems.forEach {
-            it as MediaItemsContainer.Category
+            it as Shelf.Lists.Items
             println("${it.title} : ${it.subtitle}")
             println("${it.list.size} : ${it.more}")
             it.list.forEach { item ->
