@@ -146,6 +146,10 @@ fun YtmArtist.toArtist(
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         description = description,
         followers = subscriber_count,
+        isFollowing = subscribed ?: false,
+        extras = mutableMapOf<String, String>().apply {
+            subscribe_channel_id?.let { put("subId", it) }
+        }
     )
 }
 

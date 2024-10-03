@@ -381,6 +381,18 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         return loadedArtist!!.toUser(HIGH)
     }
 
+    override suspend fun followArtist(artist: Artist): Boolean {
+        val subId = artist.extras["subId"] ?: throw Exception("No subId found")
+        withUserAuth { it.SetSubscribedToArtist.setSubscribedToArtist(artist.id, true, subId) }
+        return true
+    }
+
+    override suspend fun unfollowArtist(artist: Artist): Boolean {
+        val subId = artist.extras["subId"] ?: throw Exception("No subId found")
+        withUserAuth { it.SetSubscribedToArtist.setSubscribedToArtist(artist.id, false, subId) }
+        return true
+    }
+
     private var loadedArtist: YtmArtist? = null
     override suspend fun loadArtist(small: Artist): Artist {
         val result = artistEndPoint.loadArtist(small.id)
@@ -617,16 +629,6 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
     override suspend fun loadLyrics(small: Lyrics) = small
-
-    override suspend fun followArtist(artist: Artist): Boolean {
-        withUserAuth { it.SetSubscribedToArtist.setSubscribedToArtist(artist.id, true) }
-        return true
-    }
-
-    override suspend fun unfollowArtist(artist: Artist): Boolean {
-        withUserAuth { it.SetSubscribedToArtist.setSubscribedToArtist(artist.id, false) }
-        return true
-    }
 
     override suspend fun onShare(item: EchoMediaItem) = when (item) {
         is EchoMediaItem.Lists.AlbumItem -> "https://music.youtube.com/browse/${item.id}"
