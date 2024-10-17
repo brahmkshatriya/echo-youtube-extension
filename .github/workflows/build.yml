@@ -43,14 +43,28 @@ jobs:
         with:
           path: app/build/yt-${{ env.VERSION }}.eapk
   
-      - name: Release
-        uses: softprops/action-gh-release@v2
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          make_latest: true
-          tag_name: ${{VERSION}}
-          body: ${{COMMIT}}
-          name: "Echo Extension : Youtube Music ${{VERSION}}"
-          files: app/build/yt-${{VERSION}}.eapk
+          tag_name: v${{ env.VERSION }}
+          release_name: "Echo Extension : Youtube Music ${{ env.VERSION }}"
+          body: ${{ env.COMMIT }}
+          draft: false
+          prerelease: false
+          
+      - name: Upload Release Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: "app/build/yt-${{ env.VERSION }}.eapk"
+          asset_name: "yt-${{ env.VERSION }}.eapk"
+          asset_content_type: application/zip
 
       - name: Upload APK to Discord
         shell: bash
