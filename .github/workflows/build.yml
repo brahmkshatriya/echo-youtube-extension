@@ -9,8 +9,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      VER: $( echo ${{ github.event.head_commit.id }} | cut -c1-7 )
-      COM: $( jq -Rsa . <<< "${{ github.event.head_commit.message }}"  | tail -c +2 | head -c -2 )
+      NAME: Youtube Extension
+      TAG: yt
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -24,9 +24,9 @@ jobs:
 
       - name: Cook Env
         run: |
-          echo "COMMIT=${{ env.COM }}" >> $GITHUB_ENV
-          printf "*Youtube Extension*\n${{ github.event.head_commit.message }}" > $GITHUB_WORKSPACE/COMMIT.txt
-          echo "VERSION=${{ env.VER }}" >> $GITHUB_ENV
+          printf "*${{ env.NAME }}*\n${{ github.event.head_commit.message }}" > commit.txt
+          echo "VERSION=$( echo ${{ github.event.head_commit.id }} | cut -c1-7 )" >> $GITHUB_ENV
+          echo "PATH=app/build/${{ env.TAG }}-${{ env.VERSION }}.eapk" >> $GITHUB_ENV
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
 
       - name: Build with Gradle
@@ -37,30 +37,30 @@ jobs:
           -Pandroid.injected.signing.store.password=${{ secrets.PASSWORD }} \
           -Pandroid.injected.signing.key.alias=key0 \
           -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }}
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/yt-${{ env.VERSION }}.eapk
+          cp app/build/outputs/apk/debug/app-debug.apk ${{ env.PATH }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          path: app/build/yt-${{ env.VERSION }}.eapk
+          path: ${{ env.PATH }}
   
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           make_latest: true
           tag_name: v${{ env.VERSION }}
-          body_path: $GITHUB_WORKSPACE/COMMIT.txt
+          body_path: commit.txt
           name: ${{ env.VERSION }}
-          files: app/build/yt-${{ env.VERSION }}.eapk
+          files: ${{ env.PATH }}
 
       - name: Upload APK to Discord
         shell: bash
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          message=$(echo "@everyone **${{ env.VERSION }}**\n${{ env.COMMIT }}")
+          message=$(echo "@everyone **${{ env.VERSION }}**\n$(jq -Rsa . <<< "${{ github.event.head_commit.message }}"  | tail -c +2 | head -c -2)")
           curl -F "payload_json={\"content\":\"${message}\"}" \
-          -F "file=@app/build/yt-${{ env.VERSION }}.eapk" \
+          -F "file=@${{ env.PATH }}" \
           ${{ env.WEBHOOK }}
           
       - name: Upload APK to Telegram
@@ -69,5 +69,5 @@ jobs:
             to: ${{ secrets.TELEGRAM_CHANNEL_ID }}
             token: ${{ secrets.TELEGRAM_BOT_ID }}
             format: markdown
-            message_file: $GITHUB_WORKSPACE/COMMIT.txt
-            document: app/build/yt-${{ env.VERSION }}.eapk
+            message_file: commit.txt
+            document: ${{ env.PATH }}
