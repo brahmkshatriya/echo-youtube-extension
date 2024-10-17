@@ -17,11 +17,11 @@ import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.clients.TrackLikeClient
 import dev.brahmkshatriya.echo.common.clients.TrackerClient
 import dev.brahmkshatriya.echo.common.clients.UserClient
+import dev.brahmkshatriya.echo.common.helpers.ClientException
 import dev.brahmkshatriya.echo.common.helpers.Page
 import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
-import dev.brahmkshatriya.echo.common.models.ClientException
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.Lyric
 import dev.brahmkshatriya.echo.common.models.Lyrics
@@ -161,7 +161,6 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         ).getOrThrow().categories.firstOrNull()?.first?.items?.firstOrNull() ?: return null
         val mediaItem =
             result.toEchoMediaItem(false, thumbnailQuality) as EchoMediaItem.TrackItem
-        println("${mediaItem.title} : ${mediaItem.title != track.title}")
         if (mediaItem.title != track.title) return null
         val newTrack = songEndPoint.loadSong(mediaItem.id).getOrThrow()
         return newTrack
@@ -171,8 +170,6 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         val deferred = async { videoEndpoint.getVideo(track.id) }
         var newTrack = songEndPoint.loadSong(track.id).getOrThrow()
         val (video, desc) = deferred.await()
-//        val expiresAt =
-//            System.currentTimeMillis() + (video.streamingData.expiresInSeconds.toLong() * 1000)
         val isMusic = video.videoDetails.musicVideoType == "MUSIC_VIDEO_TYPE_ATV"
         val streamables = if (useMp4Format) video.streamingData.adaptiveFormats.mapNotNull {
             if (!it.mimeType.contains("audio")) return@mapNotNull null
@@ -183,7 +180,6 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
             newTrack = result ?: newTrack
         }
         newTrack.copy(
-            id = video.videoDetails.videoId,
             description = desc,
             artists = newTrack.artists.ifEmpty {
                 video.videoDetails.run { listOf(Artist(channelId, author)) }

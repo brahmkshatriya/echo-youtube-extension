@@ -33,6 +33,14 @@ val gitCount = execute("git", "rev-list", "--count", "HEAD").toInt()
 val verCode = gitCount
 val verName = gitHash
 
+tasks.register("uninstall") {
+    exec {
+        isIgnoreExitValue = true
+        executable(android.adbExecutable)
+        args("shell", "pm", "uninstall", android.defaultConfig.applicationId!!)
+    }
+}
+
 android {
     namespace = "dev.brahmkshatriya.echo.extension"
     compileSdk = 35

@@ -8,7 +8,6 @@ import dev.toastbits.ytmkt.model.ApiEndpoint
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerialName
@@ -31,7 +30,7 @@ class EchoVideoEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                 put("videoId", id)
                 put("playlistId", playlist)
             }
-        }.also { println(it.bodyAsText()) }
+        }
     }
 
     suspend fun getVideo(id: String, playlist: String? = null) = coroutineScope {

@@ -8,7 +8,7 @@ import android.os.Bundle
 
 class Opener : Activity() {
 
-    private val extensionId = "youtube-music"
+    private val extensionId = "youtube-musicApp"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

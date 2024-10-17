@@ -33,7 +33,7 @@ open class EchoSongEndPoint(override val api: YoutubeiApi) : ApiEndpoint() {
     ): Result<Track> = runCatching {
         val nextResponse: HttpResponse = api.client.request {
             endpointPath("next")
-            addApiHeadersWithoutAuthentication()
+            addApiHeadersWithAuthenticated()
             postWithBody {
                 put("enablePersistentPlaylistPanel", true)
                 put("isAudioOnly", true)
@@ -282,7 +282,7 @@ data class YoutubeiNextResponse(
         val title: TextRuns,
         private val longBylineText: TextRuns,
         val lengthText: TextRuns,
-        private val menu: Menu,
+        val menu: Menu,
         val thumbnail: MusicThumbnailRenderer.RendererThumbnail,
         val badges: List<MusicResponsiveListItemRenderer.Badge>?
     ) {
