@@ -9,8 +9,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      VERSION: $( echo ${{ github.event.head_commit.id }} | cut -c1-7 )
-      COMMIT: $( jq -Rsa . <<< "${{ github.event.head_commit.message }}"  | tail -c +2 | head -c -2 )
+      VER: $( echo ${{ github.event.head_commit.id }} | cut -c1-7 )
+      COM: $( jq -Rsa . <<< "${{ github.event.head_commit.message }}"  | tail -c +2 | head -c -2 )
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -24,8 +24,8 @@ jobs:
 
       - name: Cook Env
         run: |
-          COMMIT=${{ env.COMMIT }}
-          VERSION=${{ env.VERSION }}
+          echo "COMMIT=${{ env.COM }}" >> $GITHUB_ENV
+          echo "VERSION=${{ env.VER }}" >> $GITHUB_ENV
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
 
       - name: Build with Gradle
@@ -44,27 +44,13 @@ jobs:
           path: app/build/yt-${{ env.VERSION }}.eapk
   
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.VERSION }}
-          release_name: "Echo Extension : Youtube Music ${{ env.VERSION }}"
+          make_latest: true
+          tag_name: ${{ env.VERSION }}
           body: ${{ env.COMMIT }}
-          draft: false
-          prerelease: false
-          
-      - name: Upload Release Asset
-        id: upload-release-asset 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: "app/build/yt-${{ env.VERSION }}.eapk"
-          asset_name: "yt-${{ env.VERSION }}.eapk"
-          asset_content_type: application/zip
+          name: "Echo Extension : Youtube Music ${{ env.VERSION }}"
+          files: app/build/yt-${{ env.VERSION }}.eapk
 
       - name: Upload APK to Discord
         shell: bash
