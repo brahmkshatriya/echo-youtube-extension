@@ -27,7 +27,7 @@ jobs:
           printf "*${{ env.NAME }}*\n${{ github.event.head_commit.message }}" > commit.txt
           version=$( echo ${{ github.event.head_commit.id }} | cut -c1-7 )
           echo "VERSION=$version" >> $GITHUB_ENV
-          echo "PATH=app/build/${{ env.TAG }}-$version.eapk" >> $GITHUB_ENV
+          echo "APP_PATH=app/build/${{ env.TAG }}-$version.eapk" >> $GITHUB_ENV
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
           chmod +x ./gradlew
 
@@ -39,12 +39,12 @@ jobs:
           -Pandroid.injected.signing.key.alias=key0 \
           -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }}
           
-          cp app/build/outputs/apk/debug/app-debug.apk ${{ env.PATH }}
+          cp app/build/outputs/apk/debug/app-debug.apk ${{ env.APP_PATH }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          path: ${{ env.PATH }}
+          path: ${{ env.APP_PATH }}
   
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -53,7 +53,7 @@ jobs:
           tag_name: v${{ env.VERSION }}
           body_path: commit.txt
           name: ${{ env.VERSION }}
-          files: ${{ env.PATH }}
+          files: ${{ env.APP_PATH }}
 
       - name: Upload APK to Discord
         shell: bash
@@ -63,7 +63,7 @@ jobs:
           commit=$(jq -Rsa . <<< "${{ github.event.head_commit.message }}"  | tail -c +2 | head -c -2)
           message=$(echo "@everyone **${{ env.VERSION }}**\n$commit")
           curl -F "payload_json={\"content\":\"${message}\"}" \
-          -F "file=@${{ env.PATH }}" \
+          -F "file=@${{ env.APP_PATH }}" \
           ${{ env.WEBHOOK }}
           
       - name: Upload APK to Telegram
@@ -73,4 +73,4 @@ jobs:
             token: ${{ secrets.TELEGRAM_BOT_ID }}
             format: markdown
             message_file: commit.txt
-            document: ${{ env.PATH }}
+            document: ${{ env.APP_PATH }}
