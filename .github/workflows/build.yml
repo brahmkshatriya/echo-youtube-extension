@@ -47,10 +47,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           make_latest: true
-          tag_name: ${VERSION}
-          body: ${COMMIT}
-          name: "Echo Extension : Youtube Music ${VERSION}"
-          files: app/build/yt-${VERSION}.eapk
+          tag_name: ${{VERSION}}
+          body: ${{COMMIT}}
+          name: "Echo Extension : Youtube Music ${{VERSION}}"
+          files: app/build/yt-${{VERSION}}.eapk
 
       - name: Upload APK to Discord
         shell: bash
