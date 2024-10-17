@@ -29,15 +29,16 @@ jobs:
           echo "VERSION=$version" >> $GITHUB_ENV
           echo "PATH=app/build/${{ env.TAG }}-$version.eapk" >> $GITHUB_ENV
           echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
+          chmod +x ./gradlew
 
       - name: Build with Gradle
         run: |
-          chmod +x ./gradlew
           ./gradlew assembleDebug \
           -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/signing-key.jks \
           -Pandroid.injected.signing.store.password=${{ secrets.PASSWORD }} \
           -Pandroid.injected.signing.key.alias=key0 \
           -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }}
+          
           cp app/build/outputs/apk/debug/app-debug.apk ${{ env.PATH }}
 
       - name: Upload APK
