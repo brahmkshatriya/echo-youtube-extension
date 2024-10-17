@@ -35,12 +35,12 @@ jobs:
           -Pandroid.injected.signing.store.password=${{ secrets.PASSWORD }} \
           -Pandroid.injected.signing.key.alias=key0 \
           -Pandroid.injected.signing.key.password=${{ secrets.PASSWORD }}
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/yt-${{ env.VERSION }}.apk
+          cp app/build/outputs/apk/debug/app-debug.apk app/build/yt-${{ env.VERSION }}.eapk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/yt-${{ env.VERSION }}.eapk
 
       - name: Upload APK to Discord
         shell: bash
@@ -49,7 +49,7 @@ jobs:
         run: |
           message=$(echo "@everyone **${{ env.VERSION }}**\n${{ env.COMMIT }}")
           curl -F "payload_json={\"content\":\"${message}\"}" \
-          -F "file=@app/build/yt-${{ env.VERSION }}.apk" \
+          -F "file=@app/build/yt-${{ env.VERSION }}.eapk" \
           ${{ env.WEBHOOK }}
 
       - name: Upload APK to Telegram
@@ -60,7 +60,7 @@ jobs:
         run: |
           message=$(printf "*Youtube Extension*\n${{ env.COMMIT }}" | sed 's/[~>|.!+-=#]/\\&/g')
           curl -F "chat_id=${{ env.CHANNEL_ID }}" \
-          -F "document=@app/build/yt-${{ env.VERSION }}.apk" \
+          -F "document=@app/build/yt-${{ env.VERSION }}.eapk" \
           -F "caption=${message}" \
           -F "parse_mode=MarkdownV2" \
           https://api.telegram.org/bot${{ env.BOT_ID }}/sendDocument
