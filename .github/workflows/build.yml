@@ -41,17 +41,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: app/build/yt-${{ env.VERSION }}.eapk
-
-      - name: Upload APK to Discord
-        shell: bash
-        env:
-          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: |
-          message=$(echo "@everyone **${{ env.VERSION }}**\n${{ env.COMMIT }}")
-          curl -F "payload_json={\"content\":\"${message}\"}" \
-          -F "file=@app/build/yt-${{ env.VERSION }}.eapk" \
-          ${{ env.WEBHOOK }}
-
+          
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -60,7 +50,7 @@ jobs:
         with:
           tag_name: v${{ env.VERSION }}
           release_name: "Echo Extension : Youtube Music ${{ env.VERSION }}"
-          body: ${{ env.COMMIT }}
+          body: "${{ env.COMMIT }}"
           draft: false
           prerelease: false
           
@@ -74,6 +64,16 @@ jobs:
           asset_path: "app/build/yt-${{ env.VERSION }}.eapk"
           asset_name: "yt-${{ env.VERSION }}.eapk"
           asset_content_type: application/zip
+
+      - name: Upload APK to Discord
+        shell: bash
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          message=$(echo "@everyone **${{ env.VERSION }}**\n${{ env.COMMIT }}")
+          curl -F "payload_json={\"content\":\"${message}\"}" \
+          -F "file=@app/build/yt-${{ env.VERSION }}.eapk" \
+          ${{ env.WEBHOOK }}
           
       - name: Upload APK to Telegram
         shell: bash
