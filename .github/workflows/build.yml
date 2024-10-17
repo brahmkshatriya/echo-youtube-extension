@@ -46,6 +46,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           make_latest: true
+          tag_name: "v${{ env.VERSION }}"
           body: ${{ env.COMMIT }}
           name: "Echo Extension : Youtube Music ${{ env.VERSION }}"
           files: app/build/yt-${{ env.VERSION }}.eapk
