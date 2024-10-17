@@ -22,14 +22,15 @@ jobs:
           java-version: 17
           cache: 'gradle'
 
-      - name: Cook KeyStore
-        run:  echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      - name: Cook Env
+        run: |
+          COMMIT=${{ env.COMMIT }}
+          VERSION=${{ env.VERSION }}
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $GITHUB_WORKSPACE/signing-key.jks
 
       - name: Build with Gradle
         run: |
+          chmod +x ./gradlew
           ./gradlew assembleDebug \
           -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/signing-key.jks \
           -Pandroid.injected.signing.store.password=${{ secrets.PASSWORD }} \
@@ -41,15 +42,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: app/build/yt-${{ env.VERSION }}.eapk
-          
+  
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           make_latest: true
-          tag_name: "v${{ env.VERSION }}"
-          body: ${{ env.COMMIT }}
-          name: "Echo Extension : Youtube Music ${{ env.VERSION }}"
-          files: app/build/yt-${{ env.VERSION }}.eapk
+          tag_name: ${VERSION}
+          body: ${COMMIT}
+          name: "Echo Extension : Youtube Music ${VERSION}"
+          files: app/build/yt-${VERSION}.eapk
 
       - name: Upload APK to Discord
         shell: bash
