@@ -31,9 +31,7 @@ import dev.brahmkshatriya.echo.common.models.Radio
 import dev.brahmkshatriya.echo.common.models.Request.Companion.toRequest
 import dev.brahmkshatriya.echo.common.models.Shelf
 import dev.brahmkshatriya.echo.common.models.Streamable
-import dev.brahmkshatriya.echo.common.models.Streamable.Audio.Companion.toAudio
-import dev.brahmkshatriya.echo.common.models.Streamable.Media.Companion.toMedia
-import dev.brahmkshatriya.echo.common.models.Streamable.Media.Companion.toVideoMedia
+import dev.brahmkshatriya.echo.common.models.Streamable.Media.Companion.toSourceMedia
 import dev.brahmkshatriya.echo.common.models.Tab
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
@@ -83,11 +81,6 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
             "Use high quality thumbnails, will cause more data usage.",
             false
         ), SettingSwitch(
-            "Use MP4 Format",
-            "use_mp4_format",
-            "Use MP4 formats for audio streams, will turn off video & allow you to download music. ",
-            false
-        ), SettingSwitch(
             "Resolve Music for Videos",
             "resolve_music_for_videos",
             "Resolve actual music metadata for music videos, does slow down loading music videos.",
@@ -105,9 +98,6 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     val api = YoutubeiApi()
     private val thumbnailQuality
         get() = if (settings.getBoolean("high_quality") == true) HIGH else LOW
-
-    private val useMp4Format
-        get() = settings.getBoolean("use_mp4_format") ?: false
 
     private val resolveMusicForVideos
         get() = settings.getBoolean("resolve_music_for_videos") ?: true
@@ -146,13 +136,6 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         Page(data, result.ctoken)
     }
 
-    override suspend fun getStreamableMedia(streamable: Streamable) = when (streamable.mediaType) {
-        Streamable.MediaType.Audio -> streamable.id.toAudio().toMedia()
-        Streamable.MediaType.Video -> streamable.id.toVideoMedia()
-        else -> throw IllegalArgumentException()
-    }
-
-
     private suspend fun searchSongForVideo(track: Track): Track? {
         val result = searchEndpoint.search(
             "${track.title} ${track.artists.joinToString(" ") { it.name }}",
@@ -166,40 +149,89 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         return newTrack
     }
 
+    private val audioRegex = Regex("#EXT-X-MEDIA:URI=\"(.*)\",TYPE=AUDIO,GROUP-ID=\"(.*)\",NAME")
+    override suspend fun getStreamableMedia(streamable: Streamable) = when (streamable.type) {
+        Streamable.MediaType.Source -> when (streamable.id) {
+            "AUDIO_M3U8" -> {
+                val hlsManifestUrl = streamable.extra["url"]!!
+                val res = api.client.request { url.takeFrom(hlsManifestUrl) }.bodyAsText()
+                Streamable.Media.Sources(
+                    audioRegex.findAll(res).map {
+                        Streamable.Source.Http(
+                            it.groupValues[1].toRequest(),
+                            Streamable.SourceType.HLS,
+                            quality = it.groupValues[2].toInt()
+                        )
+                    }.toList(),
+                    true
+                )
+            }
+
+            "VIDEO_M3U8" -> {
+                val hlsManifestUrl = streamable.extra["url"]!!
+                hlsManifestUrl.toSourceMedia(type = Streamable.SourceType.HLS)
+            }
+
+            "AUDIO_MP3" -> {
+                val audioFiles = streamable.extra
+                Streamable.Media.Sources(
+                    audioFiles.map { (quality, url) ->
+                        Streamable.Source.Http(
+                            url.toRequest(),
+                            quality = quality.toInt()
+                        )
+                    },
+                    false
+                )
+            }
+
+            else -> throw IllegalArgumentException()
+        }
+
+        else -> throw IllegalArgumentException()
+    }
+
     override suspend fun loadTrack(track: Track) = coroutineScope {
         val deferred = async { videoEndpoint.getVideo(track.id) }
         var newTrack = songEndPoint.loadSong(track.id).getOrThrow()
         val (video, desc) = deferred.await()
         val isMusic = video.videoDetails.musicVideoType == "MUSIC_VIDEO_TYPE_ATV"
-        val streamables = if (useMp4Format) video.streamingData.adaptiveFormats.mapNotNull {
-            if (!it.mimeType.contains("audio")) return@mapNotNull null
-            Streamable.audio(it.url!!, it.bitrate)
-        } else getHlsStreams(video.streamingData.hlsManifestUrl!!, isMusic)
         if (resolveMusicForVideos && !isMusic) {
             val result = searchSongForVideo(newTrack)
             newTrack = result ?: newTrack
         }
+        val hlsUrl = video.streamingData.hlsManifestUrl!!
+        val audioFiles = video.streamingData.adaptiveFormats.mapNotNull {
+            if (!it.mimeType.contains("audio")) return@mapNotNull null
+            it.bitrate.toString() to it.url!!
+        }.toMap()
         newTrack.copy(
             description = desc,
             artists = newTrack.artists.ifEmpty {
                 video.videoDetails.run { listOf(Artist(channelId, author)) }
             },
-            streamables = streamables,
+            streamables = listOfNotNull(
+                Streamable.source(
+                    "AUDIO_M3U8",
+                    2,
+                    "Audio M3U8",
+                    mapOf("url" to hlsUrl)
+                ),
+                Streamable.source(
+                    "VIDEO_M3U8",
+                    3,
+                    "Video M3U8",
+                    mapOf("url" to hlsUrl)
+                ).takeIf { !isMusic },
+                Streamable.source(
+                    "AUDIO_MP3",
+                    1,
+                    "Audio MP3",
+                    audioFiles
+                ).takeIf { audioFiles.isNotEmpty() },
+            ),
             plays = video.videoDetails.viewCount?.toIntOrNull()
         )
-    }
-
-    private val audioRegex = Regex("#EXT-X-MEDIA:URI=\"(.*)\",TYPE=AUDIO,GROUP-ID=\"(.*)\",NAME")
-    private val videoRegex = Regex("#EXT-X-STREAM-INF:.*,RESOLUTION=\\d+x(\\d+),.*\\n(.*)")
-    private suspend fun getHlsStreams(hlsManifestUrl: String, isMusic: Boolean): List<Streamable> {
-        val res = api.client.request { url.takeFrom(hlsManifestUrl) }.bodyAsText()
-        val audio = audioRegex.findAll(res).map {
-            Streamable.audio(it.groupValues[1], it.groupValues[2].toInt(), Streamable.MimeType.HLS)
-        }.toList()
-        val video = videoRegex.findAll(res).map {
-            Streamable.video(it.groupValues[2], it.groupValues[1].toInt(), Streamable.MimeType.HLS)
-        }.toList()
-        return if (isMusic) audio else (audio + video)
     }
 
     private suspend fun loadRelated(track: Track) = track.run {
