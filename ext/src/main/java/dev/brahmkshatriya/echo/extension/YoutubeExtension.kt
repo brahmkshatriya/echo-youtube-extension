@@ -23,7 +23,6 @@ import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
-import dev.brahmkshatriya.echo.common.models.Lyric
 import dev.brahmkshatriya.echo.common.models.Lyrics
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.QuickSearch
@@ -230,7 +229,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
                     audioFiles
                 ).takeIf { audioFiles.isNotEmpty() },
             ),
-            plays = video.videoDetails.viewCount?.toIntOrNull()
+            plays = video.videoDetails.viewCount?.toLongOrNull()
         )
     }
 
@@ -650,13 +649,17 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         val data = lyricsEndPoint.getLyrics(lyricsId) ?: return@Single listOf()
         val lyrics = data.first.map {
             it.cueRange.run {
-                Lyric(it.lyricLine, startTimeMilliseconds.toLong(), endTimeMilliseconds.toLong())
+                Lyrics.Item(
+                    it.lyricLine,
+                    startTimeMilliseconds.toLong(),
+                    endTimeMilliseconds.toLong()
+                )
             }
         }
-        listOf(Lyrics(lyricsId, track.title, data.second, lyrics))
+        listOf(Lyrics(lyricsId, track.title, data.second, Lyrics.Timed(lyrics)))
     }
 
-    override suspend fun loadLyrics(small: Lyrics) = small
+    override suspend fun loadLyrics(lyrics: Lyrics) = lyrics
 
     override suspend fun onShare(item: EchoMediaItem) = when (item) {
         is EchoMediaItem.Lists.AlbumItem -> "https://music.youtube.com/browse/${item.id}"
