@@ -1,6 +1,6 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
-import dev.brahmkshatriya.echo.common.models.QuickSearch
+import dev.brahmkshatriya.echo.common.models.QuickSearchItem
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import io.ktor.client.call.body
@@ -13,10 +13,9 @@ import kotlinx.serialization.json.put
 
 open class EchoSearchSuggestionsEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
 
-    private val feedbackTokens = mutableMapOf<String, String>()
     suspend fun get(
         query: String
-    ): Result<List<QuickSearch>> = runCatching {
+    ): Result<List<QuickSearchItem>> = runCatching {
         val response: HttpResponse = api.client.request {
             endpointPath("music/get_search_suggestions")
             addApiHeadersWithAuthenticated()
@@ -27,14 +26,14 @@ open class EchoSearchSuggestionsEndpoint(override val api: YoutubeiApi) : ApiEnd
 
         val parsed: YoutubeiSearchSuggestionsResponse = response.body()
 
-        val suggestions = parsed.getSuggestions(feedbackTokens)
+        val suggestions = parsed.getSuggestions()
             ?: throw NullPointerException("Suggestions is null ($parsed)")
 
         return@runCatching suggestions
     }
 
-    suspend fun delete(query: String) {
-        val feedbackToken = feedbackTokens[query] ?: return
+    suspend fun delete(query: QuickSearchItem.Query) {
+        val feedbackToken = query.extras["token"] ?: return
         runCatching {
             api.client.request {
                 endpointPath("feedback")
@@ -53,27 +52,20 @@ open class EchoSearchSuggestionsEndpoint(override val api: YoutubeiApi) : ApiEnd
 private data class YoutubeiSearchSuggestionsResponse(
     val contents: List<Content>?
 ) {
-    fun getSuggestions(feedbackTokens: MutableMap<String, String>) = contents?.firstOrNull()
-        ?.searchSuggestionsSectionRenderer
-        ?.contents
-        ?.mapNotNull { suggestion ->
-            if (suggestion.searchSuggestionRenderer != null) {
-                return@mapNotNull QuickSearch.QueryItem(
-                    suggestion.searchSuggestionRenderer.navigationEndpoint.searchEndpoint.query,
-                    false
-                )
-            } else if (suggestion.historySuggestionRenderer != null) {
-                return@mapNotNull QuickSearch.QueryItem(
-                    suggestion.historySuggestionRenderer.navigationEndpoint.searchEndpoint.query,
-                    true
-                ).also { item ->
+    fun getSuggestions() = contents?.firstOrNull()
+        ?.searchSuggestionsSectionRenderer?.contents?.mapNotNull { suggestion ->
+            val query = suggestion.searchSuggestionRenderer?.navigationEndpoint
+                ?.searchEndpoint?.query ?: return@mapNotNull null
+            return@mapNotNull if (suggestion.historySuggestionRenderer != null) {
+                return@mapNotNull QuickSearchItem.Query(
+                    query,
+                    true,
                     suggestion.historySuggestionRenderer.serviceEndpoint
                         ?.feedbackEndpoint?.feedbackToken?.let {
-                            feedbackTokens[item.query] = it
-                        }
-                }
-            }
-            return@mapNotNull null
+                            mapOf("token" to it)
+                        } ?: emptyMap()
+                )
+            } else QuickSearchItem.Query(query, false)
         }
 
     @Serializable

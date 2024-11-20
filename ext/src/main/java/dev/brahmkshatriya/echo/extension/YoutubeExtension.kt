@@ -243,7 +243,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     override fun getShelves(track: Track) = PagedData.Single { loadRelated(track) }
 
     override suspend fun deleteQuickSearch(item: QuickSearchItem) {
-        searchSuggestionsEndpoint.delete(item.title)
+        searchSuggestionsEndpoint.delete(item as QuickSearchItem.Query)
     }
 
     override suspend fun quickSearch(query: String?) = query?.run {
