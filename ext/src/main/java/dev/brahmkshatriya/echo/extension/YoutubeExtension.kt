@@ -25,7 +25,7 @@ import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.Lyrics
 import dev.brahmkshatriya.echo.common.models.Playlist
-import dev.brahmkshatriya.echo.common.models.QuickSearch
+import dev.brahmkshatriya.echo.common.models.QuickSearchItem
 import dev.brahmkshatriya.echo.common.models.Radio
 import dev.brahmkshatriya.echo.common.models.Request.Companion.toRequest
 import dev.brahmkshatriya.echo.common.models.Shelf
@@ -242,14 +242,14 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
 
     override fun getShelves(track: Track) = PagedData.Single { loadRelated(track) }
 
-    override suspend fun deleteSearchHistory(query: QuickSearch.QueryItem) {
-        searchSuggestionsEndpoint.delete(query.query)
+    override suspend fun deleteQuickSearch(item: QuickSearchItem) {
+        searchSuggestionsEndpoint.delete(item.title)
     }
 
     override suspend fun quickSearch(query: String?) = query?.run {
         try {
             api.SearchSuggestions.getSearchSuggestions(this).getOrThrow()
-                .map { QuickSearch.QueryItem(it.text, it.is_from_history) }
+                .map { QuickSearchItem.Query(it.text, it.is_from_history) }
         } catch (e: NullPointerException) {
             null
         } catch (e: ConnectTimeoutException) {
