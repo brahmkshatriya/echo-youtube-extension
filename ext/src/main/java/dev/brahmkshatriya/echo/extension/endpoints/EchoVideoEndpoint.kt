@@ -3,12 +3,10 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
-import dev.toastbits.ytmkt.impl.youtubei.YoutubeiPostBody
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import io.ktor.client.call.body
 import io.ktor.client.request.request
 import io.ktor.client.statement.HttpResponse
-import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -34,20 +32,23 @@ class EchoVideoEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
     }
 
     suspend fun getVideo(id: String, playlist: String? = null) = coroutineScope {
-        val desc = async {
-            request(YoutubeiPostBody.WEB.getPostBody(api), id, playlist)
-                .body<YoutubeFormatResponse>()
-                .microformat!!.playerMicroformatRenderer.description.simpleText
-        }
-        val response = request(context, id, playlist)
-        response.body<YoutubeFormatResponse>() to desc.await()
+//        val desc = run {
+//            val req = request(YoutubeiPostBody.WEB.getPostBody(api), id, playlist)
+//            println(req.bodyAsText())
+//            req.body<YoutubeFormatResponse>()
+//                .microformat!!.playerMicroformatRenderer.description.simpleText
+//        }
+        val response = request(context, id, playlist).body<YoutubeFormatResponse>()
+        response to response.videoDetails.shortDescription
     }
 
     private val context = buildJsonObject {
         put("context", buildJsonObject {
             put("client", buildJsonObject {
-                put("clientName", "26")
-                put("clientVersion", "6.48.2")
+//                put("clientName", "IOS")
+//                put("clientVersion", "19.29.1")
+                put("clientName", "5")
+                put("clientVersion", "19.34.2")
             })
         })
     }
@@ -426,7 +427,8 @@ data class VideoDetails(
     val isPrivate: Boolean? = null,
     val isUnpluggedCorpus: Boolean? = null,
     val musicVideoType: String? = null,
-    val isLiveContent: Boolean? = null
+    val isLiveContent: Boolean? = null,
+    val shortDescription: String? = null,
 )
 
 @Serializable

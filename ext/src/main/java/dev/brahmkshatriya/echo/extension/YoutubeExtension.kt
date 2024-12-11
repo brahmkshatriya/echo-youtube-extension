@@ -5,13 +5,13 @@ import dev.brahmkshatriya.echo.common.clients.ArtistClient
 import dev.brahmkshatriya.echo.common.clients.ArtistFollowClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
-import dev.brahmkshatriya.echo.common.clients.LibraryClient
+import dev.brahmkshatriya.echo.common.clients.LibraryFeedClient
 import dev.brahmkshatriya.echo.common.clients.LoginClient
 import dev.brahmkshatriya.echo.common.clients.LyricsClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistEditClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
-import dev.brahmkshatriya.echo.common.clients.SearchClient
+import dev.brahmkshatriya.echo.common.clients.SearchFeedClient
 import dev.brahmkshatriya.echo.common.clients.ShareClient
 import dev.brahmkshatriya.echo.common.clients.TrackClient
 import dev.brahmkshatriya.echo.common.clients.TrackLikeClient
@@ -30,7 +30,7 @@ import dev.brahmkshatriya.echo.common.models.Radio
 import dev.brahmkshatriya.echo.common.models.Request.Companion.toRequest
 import dev.brahmkshatriya.echo.common.models.Shelf
 import dev.brahmkshatriya.echo.common.models.Streamable
-import dev.brahmkshatriya.echo.common.models.Streamable.Media.Companion.toSourceMedia
+import dev.brahmkshatriya.echo.common.models.Streamable.Media.Companion.toServerMedia
 import dev.brahmkshatriya.echo.common.models.Tab
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
@@ -68,9 +68,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.encodeToString
 import java.security.MessageDigest
 
-class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchClient, RadioClient,
-    AlbumClient, ArtistClient, UserClient, PlaylistClient, LoginClient.WebView.Cookie,
-    TrackerClient, LibraryClient, ShareClient, LyricsClient, ArtistFollowClient,
+class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFeedClient,
+    RadioClient, AlbumClient, ArtistClient, UserClient, PlaylistClient, LoginClient.WebView.Cookie,
+    TrackerClient, LibraryFeedClient, ShareClient, LyricsClient, ArtistFollowClient,
     TrackLikeClient, PlaylistEditClient {
 
     override val settingItems: List<Setting> = listOf(
@@ -149,12 +149,12 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
     private val audioRegex = Regex("#EXT-X-MEDIA:URI=\"(.*)\",TYPE=AUDIO,GROUP-ID=\"(.*)\",NAME")
-    override suspend fun getStreamableMedia(streamable: Streamable) = when (streamable.type) {
-        Streamable.MediaType.Source -> when (streamable.id) {
+    override suspend fun loadStreamableMedia(streamable: Streamable) = when (streamable.type) {
+        Streamable.MediaType.Server -> when (streamable.id) {
             "AUDIO_M3U8" -> {
-                val hlsManifestUrl = streamable.extra["url"]!!
+                val hlsManifestUrl = streamable.extras["url"]!!
                 val res = api.client.request { url.takeFrom(hlsManifestUrl) }.bodyAsText()
-                Streamable.Media.Sources(
+                Streamable.Media.Server(
                     audioRegex.findAll(res).map {
                         Streamable.Source.Http(
                             it.groupValues[1].toRequest(),
@@ -167,13 +167,13 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
             }
 
             "VIDEO_M3U8" -> {
-                val hlsManifestUrl = streamable.extra["url"]!!
-                hlsManifestUrl.toSourceMedia(type = Streamable.SourceType.HLS)
+                val hlsManifestUrl = streamable.extras["url"]!!
+                hlsManifestUrl.toServerMedia(type = Streamable.SourceType.HLS)
             }
 
             "AUDIO_MP3" -> {
-                val audioFiles = streamable.extra
-                Streamable.Media.Sources(
+                val audioFiles = streamable.extras
+                Streamable.Media.Server(
                     audioFiles.map { (quality, url) ->
                         Streamable.Source.Http(
                             url.toRequest(),
@@ -210,19 +210,19 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
                 video.videoDetails.run { listOf(Artist(channelId, author)) }
             },
             streamables = listOfNotNull(
-                Streamable.source(
+                Streamable.server(
                     "AUDIO_M3U8",
                     2,
                     "Audio M3U8",
                     mapOf("url" to hlsUrl)
                 ),
-                Streamable.source(
+                Streamable.server(
                     "VIDEO_M3U8",
                     3,
                     "Video M3U8",
                     mapOf("url" to hlsUrl)
                 ).takeIf { !isMusic },
-                Streamable.source(
+                Streamable.server(
                     "AUDIO_MP3",
                     1,
                     "Audio MP3",
@@ -246,7 +246,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         searchSuggestionsEndpoint.delete(item as QuickSearchItem.Query)
     }
 
-    override suspend fun quickSearch(query: String?) = query?.run {
+    override suspend fun quickSearch(query: String) = query.takeIf { it.isBlank() }?.run {
         try {
             api.SearchSuggestions.getSearchSuggestions(this).getOrThrow()
                 .map { QuickSearchItem.Query(it.text, it.is_from_history) }
@@ -259,8 +259,8 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
 
 
     private var oldSearch: Pair<String, List<Shelf>>? = null
-    override fun searchFeed(query: String?, tab: Tab?): PagedData<Shelf> =
-        if (query != null) PagedData.Single {
+    override fun searchFeed(query: String, tab: Tab?): PagedData<Shelf> =
+        if (query.isBlank()) PagedData.Single {
             val old = oldSearch?.takeIf {
                 it.first == query && (tab == null || tab.id == "All")
             }?.second
@@ -284,8 +284,8 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
             Page(data, result.ctoken)
         } else PagedData.Single { listOf() }
 
-    override suspend fun searchTabs(query: String?): List<Tab> {
-        if (query != null) {
+    override suspend fun searchTabs(query: String): List<Tab> {
+        if (query.isBlank()) {
             val search = api.Search.search(query, null).getOrThrow()
             oldSearch = query to search.categories.map { (itemLayout, _) ->
                 itemLayout.toShelf(api, SINGLES, thumbnailQuality)
@@ -401,28 +401,21 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
         getArtistMediaItems(artist)
     }
 
-    override fun getShelves(it: User) = getShelves(it.toArtist())
+    override fun getShelves(user: User) = getShelves(user.toArtist())
 
     override suspend fun loadUser(user: User): User {
         loadArtist(user.toArtist())
         return loadedArtist!!.toUser(HIGH)
     }
 
-    override suspend fun followArtist(artist: Artist): Boolean {
+    override suspend fun followArtist(artist: Artist, follow: Boolean) {
         val subId = artist.extras["subId"] ?: throw Exception("No subId found")
-        withUserAuth { it.SetSubscribedToArtist.setSubscribedToArtist(artist.id, true, subId) }
-        return true
-    }
-
-    override suspend fun unfollowArtist(artist: Artist): Boolean {
-        val subId = artist.extras["subId"] ?: throw Exception("No subId found")
-        withUserAuth { it.SetSubscribedToArtist.setSubscribedToArtist(artist.id, false, subId) }
-        return true
+        withUserAuth { it.SetSubscribedToArtist.setSubscribedToArtist(artist.id, follow, subId) }
     }
 
     private var loadedArtist: YtmArtist? = null
-    override suspend fun loadArtist(small: Artist): Artist {
-        val result = artistEndPoint.loadArtist(small.id)
+    override suspend fun loadArtist(artist: Artist): Artist {
+        val result = artistEndPoint.loadArtist(artist.id)
         loadedArtist = result
         return result.toArtist(HIGH)
     }
@@ -518,19 +511,19 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchCli
     }
 
 
-    override suspend fun onMarkAsPlayed(clientId: String, context: EchoMediaItem?, track: Track) {
+    override suspend fun onMarkAsPlayed(
+        extensionId: String, context: EchoMediaItem?, track: Track
+    ) {
         api.user_auth_state?.MarkSongAsWatched?.markSongAsWatched(track.id)?.getOrThrow()
     }
 
     override suspend fun onStartedPlaying(
-        clientId: String, context: EchoMediaItem?, track: Track
-    ) {
-    }
+        extensionId: String, context: EchoMediaItem?, track: Track
+    ) {}
 
     override suspend fun onStoppedPlaying(
-        clientId: String, context: EchoMediaItem?, track: Track
-    ) {
-    }
+        extensionId: String, context: EchoMediaItem?, track: Track
+    ) {}
 
     override suspend fun getLibraryTabs() = listOf(
         Tab("FEmusic_library_landing", "All"),
