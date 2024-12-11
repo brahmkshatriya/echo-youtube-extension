@@ -23,7 +23,7 @@ class EchoVideoEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
     ): HttpResponse {
         return api.client.request {
             endpointPath("player")
-            addApiHeadersWithAuthenticated()
+            addApiHeadersWithoutAuthentication()
             postWithBody(context) {
                 put("videoId", id)
                 put("playlistId", playlist)
@@ -32,12 +32,6 @@ class EchoVideoEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
     }
 
     suspend fun getVideo(id: String, playlist: String? = null) = coroutineScope {
-//        val desc = run {
-//            val req = request(YoutubeiPostBody.WEB.getPostBody(api), id, playlist)
-//            println(req.bodyAsText())
-//            req.body<YoutubeFormatResponse>()
-//                .microformat!!.playerMicroformatRenderer.description.simpleText
-//        }
         val response = request(context, id, playlist).body<YoutubeFormatResponse>()
         response to response.videoDetails.shortDescription
     }
@@ -45,8 +39,6 @@ class EchoVideoEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
     private val context = buildJsonObject {
         put("context", buildJsonObject {
             put("client", buildJsonObject {
-//                put("clientName", "IOS")
-//                put("clientVersion", "19.29.1")
                 put("clientName", "5")
                 put("clientVersion", "19.34.2")
             })

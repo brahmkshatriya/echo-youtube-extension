@@ -246,7 +246,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
         searchSuggestionsEndpoint.delete(item as QuickSearchItem.Query)
     }
 
-    override suspend fun quickSearch(query: String) = query.takeIf { it.isBlank() }?.run {
+    override suspend fun quickSearch(query: String) = query.takeIf { it.isNotBlank() }?.run {
         try {
             api.SearchSuggestions.getSearchSuggestions(this).getOrThrow()
                 .map { QuickSearchItem.Query(it.text, it.is_from_history) }
@@ -260,7 +260,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
 
     private var oldSearch: Pair<String, List<Shelf>>? = null
     override fun searchFeed(query: String, tab: Tab?): PagedData<Shelf> =
-        if (query.isBlank()) PagedData.Single {
+        if (query.isNotBlank()) PagedData.Single {
             val old = oldSearch?.takeIf {
                 it.first == query && (tab == null || tab.id == "All")
             }?.second
@@ -285,7 +285,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
         } else PagedData.Single { listOf() }
 
     override suspend fun searchTabs(query: String): List<Tab> {
-        if (query.isBlank()) {
+        if (query.isNotBlank()) {
             val search = api.Search.search(query, null).getOrThrow()
             oldSearch = query to search.categories.map { (itemLayout, _) ->
                 itemLayout.toShelf(api, SINGLES, thumbnailQuality)
