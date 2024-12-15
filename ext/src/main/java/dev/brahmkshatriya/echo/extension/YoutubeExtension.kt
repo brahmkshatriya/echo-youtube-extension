@@ -33,6 +33,7 @@ import dev.brahmkshatriya.echo.common.models.Streamable
 import dev.brahmkshatriya.echo.common.models.Streamable.Media.Companion.toServerMedia
 import dev.brahmkshatriya.echo.common.models.Tab
 import dev.brahmkshatriya.echo.common.models.Track
+import dev.brahmkshatriya.echo.common.models.TrackDetails
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.common.settings.SettingSwitch
@@ -75,12 +76,18 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
 
     override val settingItems: List<Setting> = listOf(
         SettingSwitch(
+            "Show Videos",
+            "show_videos",
+            "Allows videos to be available when playing stuff. Instead of disabling videos, change the streaming quality as Medium in the app settings to select audio only by default.",
+            true
+        ),
+        SettingSwitch(
             "High Thumbnail Quality",
             "high_quality",
             "Use high quality thumbnails, will cause more data usage.",
             false
         ), SettingSwitch(
-            "Resolve Music for Videos",
+            "Resolve to Music for Videos",
             "resolve_music_for_videos",
             "Resolve actual music metadata for music videos, does slow down loading music videos.",
             true
@@ -100,6 +107,9 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
 
     private val resolveMusicForVideos
         get() = settings.getBoolean("resolve_music_for_videos") ?: true
+
+    private val showVideos
+        get() = settings.getBoolean("show_videos") ?: true
 
     private val language = ENGLISH
 
@@ -135,21 +145,23 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
         Page(data, result.ctoken)
     }
 
-    private suspend fun searchSongForVideo(track: Track): Track? {
+    private suspend fun searchSongForVideo(title: String, artists: String): Track? {
         val result = searchEndpoint.search(
-            "${track.title} ${track.artists.joinToString(" ") { it.name }}",
+            "$title $artists",
             "EgWKAQIIAWoSEAMQBBAJEA4QChAFEBEQEBAV",
             false
         ).getOrThrow().categories.firstOrNull()?.first?.items?.firstOrNull() ?: return null
         val mediaItem =
             result.toEchoMediaItem(false, thumbnailQuality) as EchoMediaItem.TrackItem
-        if (mediaItem.title != track.title) return null
+        if (mediaItem.title != title) return null
         val newTrack = songEndPoint.loadSong(mediaItem.id).getOrThrow()
         return newTrack
     }
 
     private val audioRegex = Regex("#EXT-X-MEDIA:URI=\"(.*)\",TYPE=AUDIO,GROUP-ID=\"(.*)\",NAME")
-    override suspend fun loadStreamableMedia(streamable: Streamable) = when (streamable.type) {
+    override suspend fun loadStreamableMedia(
+        streamable: Streamable, isDownload: Boolean
+    ): Streamable.Media = when (streamable.type) {
         Streamable.MediaType.Server -> when (streamable.id) {
             "AUDIO_M3U8" -> {
                 val hlsManifestUrl = streamable.extras["url"]!!
@@ -177,7 +189,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
                     audioFiles.map { (quality, url) ->
                         Streamable.Source.Http(
                             url.toRequest(),
-                            quality = quality.toInt()
+                            quality = quality.toIntOrNull() ?: 0
                         )
                     },
                     false
@@ -191,21 +203,23 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
     }
 
     override suspend fun loadTrack(track: Track) = coroutineScope {
-        val deferred = async { videoEndpoint.getVideo(track.id) }
-        var newTrack = songEndPoint.loadSong(track.id).getOrThrow()
-        val (video, desc) = deferred.await()
-        val isMusic = video.videoDetails.musicVideoType == "MUSIC_VIDEO_TYPE_ATV"
-        if (resolveMusicForVideos && !isMusic) {
-            val result = searchSongForVideo(newTrack)
-            newTrack = result ?: newTrack
-        }
+        val deferred = async { songEndPoint.loadSong(track.id).getOrThrow() }
+        val (video, type) = videoEndpoint.getVideo(true, track.id)
+        val isMusic = type == "MUSIC_VIDEO_TYPE_ATV"
+
+        val resolvedTrack = if (resolveMusicForVideos && !isMusic) {
+            searchSongForVideo(video.videoDetails.title!!, video.videoDetails.author)
+        } else null
+
+
         val hlsUrl = video.streamingData.hlsManifestUrl!!
         val audioFiles = video.streamingData.adaptiveFormats.mapNotNull {
             if (!it.mimeType.contains("audio")) return@mapNotNull null
-            it.bitrate.toString() to it.url!!
+            it.audioSampleRate.toString() to it.url!!
         }.toMap()
+        val newTrack = resolvedTrack ?: deferred.await()
         newTrack.copy(
-            description = desc,
+            description = video.videoDetails.shortDescription,
             artists = newTrack.artists.ifEmpty {
                 video.videoDetails.run { listOf(Artist(channelId, author)) }
             },
@@ -221,7 +235,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
                     3,
                     "Video M3U8",
                     mapOf("url" to hlsUrl)
-                ).takeIf { !isMusic },
+                ).takeIf { !isMusic && showVideos },
                 Streamable.server(
                     "AUDIO_MP3",
                     1,
@@ -511,19 +525,11 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
     }
 
 
-    override suspend fun onMarkAsPlayed(
-        extensionId: String, context: EchoMediaItem?, track: Track
-    ) {
-        api.user_auth_state?.MarkSongAsWatched?.markSongAsWatched(track.id)?.getOrThrow()
+    override val markAsPlayedDuration = 30000L
+
+    override suspend fun onMarkAsPlayed(details: TrackDetails) {
+        api.user_auth_state?.MarkSongAsWatched?.markSongAsWatched(details.track.id)?.getOrThrow()
     }
-
-    override suspend fun onStartedPlaying(
-        extensionId: String, context: EchoMediaItem?, track: Track
-    ) {}
-
-    override suspend fun onStoppedPlaying(
-        extensionId: String, context: EchoMediaItem?, track: Track
-    ) {}
 
     override suspend fun getLibraryTabs() = listOf(
         Tab("FEmusic_library_landing", "All"),

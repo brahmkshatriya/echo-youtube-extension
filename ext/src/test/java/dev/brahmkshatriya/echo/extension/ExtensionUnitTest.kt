@@ -161,9 +161,10 @@ class ExtensionUnitTest {
         val search = Track("qeFt3fdsydA", "")
         measureTimeMillis {
             val track = extension.loadTrack(search)
+            println(track.servers)
             val streamable = track.servers.firstOrNull()
                 ?: error("Track is not streamable")
-            val stream = extension.loadStreamableMedia(streamable)
+            val stream = extension.loadStreamableMedia(streamable, false)
             println(stream)
         }.also { println("time : $it") }
     }
@@ -233,12 +234,12 @@ class ExtensionUnitTest {
             println("${it.title} : ${it.subtitle}")
             println("${it.list.size} : ${it.more}")
             it.list.forEach { item ->
-                println("${item.title} : ${item.subtitle}")
+                println("${item.title} : ${item.subtitleWithE}")
             }
             if (it.more != null) {
                 println("Loading More")
                 it.more?.loadFirst()?.forEach { item ->
-                    println("${item.title} : ${item.subtitle}")
+                    println("${item.title} : ${item.subtitleWithE}")
                 }
             }
         }
