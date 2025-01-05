@@ -1,6 +1,7 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
 import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistEndpoint.Companion.findSongCount
+import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistEndpoint.Companion.findTrackCount
 import dev.toastbits.ytmkt.endpoint.SongFeedFilterChip
 import dev.toastbits.ytmkt.impl.youtubei.endpoint.ChipCloudRendererHeader
 import dev.toastbits.ytmkt.model.YtmApi
@@ -12,9 +13,9 @@ import dev.toastbits.ytmkt.model.internal.HeaderRenderer
 import dev.toastbits.ytmkt.model.internal.MusicMultiRowListItemRenderer
 import dev.toastbits.ytmkt.model.internal.MusicResponsiveListItemRenderer
 import dev.toastbits.ytmkt.model.internal.TextRun
-import dev.toastbits.ytmkt.model.internal.TextRuns
 import dev.toastbits.ytmkt.radio.YoutubeiNextResponse
 import dev.toastbits.ytmkt.uistrings.YoutubeUiString
+import dev.toastbits.ytmkt.uistrings.parseYoutubeDurationString
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -85,6 +86,8 @@ data class YoutubeiBrowseResponse(
     data class YoutubeiShelf(
         val musicShelfRenderer: MusicShelfRenderer?,
         val musicPlaylistShelfRenderer: MusicPlaylistShelfRenderer?,
+        val musicResponsiveHeaderRenderer: MusicResponsiveHeaderRenderer?,
+        val musicEditablePlaylistDetailHeaderRenderer: MusicEditablePlaylistDetailHeaderRenderer?,
         val musicCarouselShelfRenderer: MusicCarouselShelfRenderer?,
         val musicDescriptionShelfRenderer: MusicDescriptionShelfRenderer?,
         val musicCardShelfRenderer: MusicCardShelfRenderer?,
@@ -95,7 +98,6 @@ data class YoutubeiBrowseResponse(
             get() =
                 if (musicShelfRenderer != null) musicShelfRenderer.title?.runs?.firstOrNull()
                 else if (musicCarouselShelfRenderer != null) musicCarouselShelfRenderer.header.getRenderer()?.title?.runs?.firstOrNull()
-                else if (musicDescriptionShelfRenderer != null) musicDescriptionShelfRenderer.header?.runs?.firstOrNull()
                 else if (musicCardShelfRenderer != null) musicCardShelfRenderer.title.runs?.firstOrNull()
                 else if (gridRenderer != null) gridRenderer.header?.gridHeaderRenderer?.title?.runs?.firstOrNull()
                 else null
@@ -110,7 +112,7 @@ data class YoutubeiBrowseResponse(
 
         @Serializable
         data class MusicShelfRenderer(
-            val title: TextRuns?,
+            val title: dev.toastbits.ytmkt.model.internal.TextRuns?,
             val contents: List<YoutubeiShelfContentsItem>? = null,
             val continuations: List<YoutubeiNextResponse.Continuation>? = null,
             val bottomEndpoint: dev.toastbits.ytmkt.model.internal.NavigationEndpoint?
@@ -148,6 +150,50 @@ data class YoutubeiBrowseResponse(
         fun getRenderer() =
             musicShelfRenderer ?: musicPlaylistShelfRenderer ?: musicCarouselShelfRenderer
             ?: musicDescriptionShelfRenderer ?: musicCardShelfRenderer ?: gridRenderer
+
+
+        fun getPlaylistData(hl: String) = (musicResponsiveHeaderRenderer ?: musicEditablePlaylistDetailHeaderRenderer?.header?.musicResponsiveHeaderRenderer)?.run {
+            val title = title?.runs?.firstOrNull()?.text ?: "Unknown"
+            val thumbnail = thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.let {
+                ThumbnailProvider.fromThumbnails(it)
+            }
+            val year = subtitle?.runs?.find { it.text.length == 4 }?.text?.toIntOrNull()
+            val description =
+                description?.musicDescriptionShelfRenderer?.description?.runs?.joinToString("") {
+                    it.text
+                }
+            val tracks = secondSubtitle?.runs?.findSongCount()
+                ?: secondSubtitle?.runs?.findTrackCount()
+
+            val duration = secondSubtitle?.runs?.lastOrNull()?.let {
+                parseYoutubeDurationString(it.text, hl)
+            }
+            val isEditable = thumbnailEditButton?.buttonRenderer?.isDisabled == false
+            val artist = facepile?.avatarStackViewModel?.let { model ->
+                val url =
+                    model.rendererContext?.commandContext?.onTap?.innertubeCommand?.browseEndpoint?.browseId
+                        ?: return@let null
+                val name = model.rendererContext.accessibilityContext?.label ?: "Unknown"
+                YtmArtist(url, name)
+            }?.let { listOf(it) }
+            val artists = straplineTextOne?.runs?.mapNotNull {
+                val id = it.navigationEndpoint?.browseEndpoint?.browseId ?: return@mapNotNull null
+                YtmArtist(id, it.text)
+            } ?: emptyList()
+            val isExplicit = subtitleBadge?.any { it.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE" }
+                ?: false
+            PlaylistData(
+                title = title,
+                description = description,
+                thumbnail = thumbnail,
+                artists = artist ?: artists,
+                year = year,
+                explicit = isExplicit,
+                isEditable = isEditable,
+                count = tracks,
+                duration = duration
+            )
+        }
     }
 
     @Serializable
@@ -158,8 +204,6 @@ data class YoutubeiBrowseResponse(
     )
 
     data class PlaylistData(
-        val playlistId: String?,
-        val privacy: String?,
         val title: String?,
         val description: String?,
         val thumbnail: ThumbnailProvider?,
@@ -167,12 +211,12 @@ data class YoutubeiBrowseResponse(
         val year: Int?,
         val explicit: Boolean = false,
         val isEditable: Boolean = false,
-        val count: Int? = null
+        val count: Int? = null,
+        val duration: Long? = null
     )
 
     @Serializable
     data class Header(
-        val musicEditablePlaylistDetailHeaderRenderer: MusicEditablePlaylistDetailHeaderRenderer? = null,
         val musicDetailHeaderRenderer: MusicDetailHeaderRenderer? = null,
         val musicElementHeaderRenderer: MusicElementHeaderRenderer? = null,
         val musicCarouselShelfBasicHeaderRenderer: HeaderRenderer?,
@@ -185,76 +229,99 @@ data class YoutubeiBrowseResponse(
                 ?: musicImmersiveHeaderRenderer
                 ?: musicVisualHeaderRenderer
         }
-
-        fun getPlaylistData() =
-            musicElementHeaderRenderer?.elementRenderer?.elementRenderer?.newElement?.type?.componentType?.model?.musicBlurredBackgroundHeaderModel?.data?.let {
-                PlaylistData(
-                    playlistId = null,
-                    privacy = null,
-                    title = it.title,
-                    description = it.formattedDescription?.content,
-                    thumbnail = it.primaryImage?.sources?.let { thumbnails ->
-                        ThumbnailProvider.fromThumbnails(
-                            thumbnails
-                        )
-                    },
-                    artists = listOfNotNull(
-                        it.straplineData?.headerOnTapCommand?.innertubeCommand?.browseEndpoint?.browseId?.let { id ->
-                            YtmArtist(id, it.straplineData.textLine1?.content)
-                        }
-                    ),
-                    year = it.straplineData?.textLine2?.content?.takeLast(4)?.toIntOrNull(),
-                    isEditable = false
-                )
-            } ?: musicDetailHeaderRenderer?.let {
-                PlaylistData(
-                    playlistId = null,
-                    privacy = null,
-                    title = it.title?.runs?.firstOrNull()?.text,
-                    description = it.byline?.musicDetailHeaderButtonsBylineRenderer?.description?.runs?.firstOrNull()?.text,
-                    thumbnail = it.thumbnail?.croppedSquareThumbnailRenderer?.thumbnail?.thumbnails?.let { thumbnails ->
-                        ThumbnailProvider.fromThumbnails(thumbnails)
-                    },
-                    artists = it.secondTitle?.runs?.mapNotNull { run ->
-                        val browseEndpoint =
-                            run.navigationEndpoint?.browseEndpoint ?: return@mapNotNull null
-                        return@mapNotNull YtmArtist(
-                            browseEndpoint.browseId!!,
-                            name = run.text
-                        )
-                    } ?: emptyList(),
-                    year = it.subtitle?.runs?.find { run -> run.text?.length == 4 }?.text?.toIntOrNull(),
-                    explicit = it.subtitleBadges?.any { badge -> badge.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE" } == true,
-                    count = it.menu?.menuRenderer?.title?.musicMenuTitleRenderer?.secondaryText?.runs?.findSongCount()
-                )
-            }
-            ?: musicEditablePlaylistDetailHeaderRenderer?.editHeader?.musicPlaylistEditHeaderRenderer?.let {
-                val (thumbnails, artist) = musicEditablePlaylistDetailHeaderRenderer.header?.musicElementHeaderRenderer?.elementRenderer?.elementRenderer?.newElement?.type?.componentType?.model?.musicBlurredBackgroundHeaderModel?.data?.let { data ->
-                    val artist =
-                        data.straplineData?.headerOnTapCommand?.innertubeCommand?.browseEndpoint?.browseId?.let { id ->
-                            YtmArtist(id, data.straplineData.textLine1?.content)
-                        }
-                    data.primaryImage?.sources to artist
-                } ?: (null to null)
-                PlaylistData(
-                    playlistId = it.playlistId,
-                    privacy = it.privacy,
-                    title = it.title?.runs?.firstOrNull()?.text,
-                    description = it.description?.runs?.firstOrNull()?.text,
-                    thumbnail = thumbnails?.let { it1 -> ThumbnailProvider.fromThumbnails(it1) },
-                    artists = listOfNotNull(artist),
-                    year = null,
-                    isEditable = !(it.metadataFieldsDisabled ?: false)
-                )
-            }
-
     }
 
+    @Serializable
+    data class MusicResponsiveHeaderRenderer(
+        val thumbnail: StraplineThumbnailClass? = null,
+        val title: TextRuns? = null,
+        val subtitle: TextRuns? = null,
+        val description: MusicResponsiveHeaderRendererDescription? = null,
+        val secondSubtitle: TextRuns? = null,
+        val thumbnailEditButton: ThumbnailEditButton? = null,
+        val facepile: Facepile? = null,
+        val straplineTextOne: TextRuns? = null,
+        val straplineThumbnail: StraplineThumbnailClass? = null,
+        val subtitleBadge: List<SubtitleBadge>? = null
+    )
+
+    @Serializable
+    data class MusicResponsiveHeaderRendererDescription(
+        val musicDescriptionShelfRenderer: MusicDescriptionShelfRenderer? = null
+    )
+
+    @Serializable
+    data class MusicDescriptionShelfRenderer(
+        val description: TextRuns? = null
+    )
+
+    @Serializable
+    data class URLEndpoint(
+        val url: String? = null,
+        val target: String? = null
+    )
+
+    @Serializable
+    data class Facepile(
+        val avatarStackViewModel: AvatarStackViewModel? = null
+    )
+
+    @Serializable
+    data class AvatarStackViewModel(
+        val rendererContext: RendererContext? = null,
+        val text: Text? = null
+    )
+
+    @Serializable
+    data class RendererContext(
+        val accessibilityContext: AccessibilityData? = null,
+        val commandContext: CommandContext? = null
+    )
+
+    @Serializable
+    data class CommandContext(
+        val onTap: OnTap? = null
+    )
+
+    @Serializable
+    data class OnTap(
+        val innertubeCommand: InnertubeCommandClass? = null
+    )
+
+    @Serializable
+    data class InnertubeCommandClass(
+        val browseEndpoint: BrowseEndpoint? = null
+    )
+
+    @Serializable
+    data class Text(
+        val content: String? = null
+    )
+
+    @Serializable
+    data class TextRuns(
+        val runs: List<TextRun>? = null
+    )
+
+    @Serializable
+    data class StraplineThumbnailClass(
+        val musicThumbnailRenderer: MusicThumbnailRenderer? = null
+    )
+
+    @Serializable
+    data class ThumbnailEditButton(
+        val buttonRenderer: ButtonRenderer? = null
+    )
+
+    @Serializable
+    data class ButtonRenderer(
+        val isDisabled: Boolean? = null
+    )
 
     @Serializable
     data class MusicDetailHeaderRenderer(
-        val title: Subtitle? = null,
-        val subtitle: Subtitle? = null,
+        val title: TextRuns? = null,
+        val subtitle: TextRuns? = null,
         val byline: Byline? = null,
         val menu: Menu? = null,
         val thumbnail: MusicDetailHeaderRendererThumbnail? = null,
@@ -269,17 +336,7 @@ data class YoutubeiBrowseResponse(
 
     @Serializable
     data class MusicDetailHeaderButtonsBylineRenderer(
-        val description: Subtitle? = null
-    )
-
-    @Serializable
-    data class Subtitle(
-        val runs: List<SubtitleRun>? = null
-    )
-
-    @Serializable
-    data class SubtitleRun(
-        val text: String? = null
+        val description: TextRuns? = null
     )
 
     @Serializable
@@ -300,7 +357,7 @@ data class YoutubeiBrowseResponse(
 
     @Serializable
     data class MusicMenuTitleRenderer(
-        val primaryText: Subtitle? = null,
+        val primaryText: TextRuns? = null,
         val secondaryText: SecondaryText? = null,
         val thumbnail: MusicMenuTitleRendererThumbnail? = null
     )
@@ -353,7 +410,8 @@ data class YoutubeiBrowseResponse(
     @Serializable
     data class NavigationEndpoint(
         val clickTrackingParams: String? = null,
-        val browseEndpoint: BrowseEndpoint? = null
+        val browseEndpoint: BrowseEndpoint? = null,
+        val urlEndpoint: URLEndpoint? = null
     )
 
     @Serializable
@@ -401,7 +459,7 @@ data class YoutubeiBrowseResponse(
 
     @Serializable
     data class MusicEditablePlaylistDetailHeaderRenderer(
-        val header: Header? = null,
+        val header: YoutubeiShelf? = null,
         val editHeader: EditHeader? = null,
         val trackingParams: String? = null,
         val playlistId: String? = null
@@ -414,10 +472,10 @@ data class YoutubeiBrowseResponse(
 
     @Serializable
     data class MusicPlaylistEditHeaderRenderer(
-        val title: Subtitle? = null,
-        val editTitle: Subtitle? = null,
-        val description: Subtitle? = null,
-        val editDescription: Subtitle? = null,
+        val title: TextRuns? = null,
+        val editTitle: TextRuns? = null,
+        val description: TextRuns? = null,
+        val editDescription: TextRuns? = null,
         val privacy: String? = null,
         val playlistId: String? = null,
         val metadataFieldsDisabled: Boolean? = null

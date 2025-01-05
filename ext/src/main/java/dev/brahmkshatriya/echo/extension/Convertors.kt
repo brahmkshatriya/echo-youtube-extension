@@ -72,10 +72,13 @@ fun YtmPlaylist.toPlaylist(
 ): Playlist {
     val extras = mutableMapOf<String, String>()
     related?.let { extras["relatedId"] = it }
+    val bool = owner_id?.split(",")?.map {
+        it.toBoolean()
+    } ?: listOf(false, false)
     return Playlist(
         id = id,
         title = name ?: "Unknown",
-        isEditable = owner_id.toBoolean(),
+        isEditable = bool.getOrNull(1) ?: false,
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         authors = artists?.map { it.toUser(quality) } ?: emptyList(),
         tracks = item_count,
@@ -91,9 +94,13 @@ fun YtmPlaylist.toAlbum(
     single: Boolean = false,
     quality: ThumbnailProvider.Quality
 ): Album {
+    val bool = owner_id?.split(",")?.map {
+        it.toBoolean()
+    } ?: listOf(false, false)
     return Album(
         id = id,
         title = name ?: "Unknown",
+        isExplicit = bool.firstOrNull() ?: false,
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         artists = artists?.map { it.toArtist(quality) } ?: emptyList(),
         tracks = item_count ?: if (single) 1 else null,

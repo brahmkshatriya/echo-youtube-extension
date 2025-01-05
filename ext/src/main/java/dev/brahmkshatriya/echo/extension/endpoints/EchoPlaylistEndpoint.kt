@@ -59,7 +59,7 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
         val res = api.client.request {
             endpointPath("browse")
             addApiHeadersWithAuthenticated()
-            postWithBody(YoutubeiPostBody.ANDROID_MUSIC.getPostBody(api)) {
+            postWithBody(YoutubeiPostBody.BASE.getPostBody(api)) {
                 put("browseId", id)
                 if (param != null) {
                     put("params", param)
@@ -119,8 +119,15 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
     companion object {
         private val regex = Regex("(\\d+) $SONGS")
         fun List<TextRun>.findSongCount(): Int? {
-            val count = this.firstOrNull { it.text.contains(SONGS) }?.text
-            val result = regex.find(count ?: return null)?.groupValues?.get(1)
+            val count = this.firstOrNull { it.text.contains(SONGS) }?.text ?: return null
+            val result = regex.find(count)?.groupValues?.get(1)
+            return result?.toIntOrNull()
+        }
+
+        private val trackRegex = Regex("(\\d+) track")
+        fun List<TextRun>.findTrackCount(): Int? {
+            val count = this.firstOrNull { it.text.contains("track") }?.text ?: return null
+            val result = trackRegex.find(count)?.groupValues?.get(1)
             return result?.toIntOrNull()
         }
 
@@ -133,18 +140,20 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
             val parsed: YoutubeiBrowseResponse = response.body()
 
             val builder = YtmPlaylistBuilder(playlistId)
-            val playlistData = parsed.header?.getPlaylistData()
-            if (playlistData != null) {
-                builder.name = playlistData.title
-                builder.description = playlistData.description
-                builder.thumbnail_provider = playlistData.thumbnail
-                builder.artists = playlistData.artists
-                builder.year = playlistData.year
-                builder.owner_id = playlistData.isEditable.toString()
-                builder.item_count = playlistData.count
-            }
+            val playlistData = parsed.contents?.twoColumnBrowseResultsRenderer?.tabs?.firstOrNull()
+                ?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()
+                ?.getPlaylistData(hl)!!
 
-            val sectionListRenderer = parsed.contents?.run {
+            builder.name = playlistData.title
+            builder.description = playlistData.description
+            builder.thumbnail_provider = playlistData.thumbnail
+            builder.artists = playlistData.artists
+            builder.year = playlistData.year
+            builder.owner_id = "${playlistData.explicit},${playlistData.isEditable}"
+            builder.item_count = playlistData.count
+            builder.total_duration = playlistData.duration
+
+            val sectionListRenderer = parsed.contents.run {
                 singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer
                     ?: twoColumnBrowseResultsRenderer?.secondaryContents?.sectionListRenderer
             }

@@ -209,7 +209,7 @@ class ExtensionUnitTest {
     fun testPlaylistMediaItems() = testIn("Testing Playlist Media Items") {
         if (extension !is PlaylistClient) error("PlaylistClient is not implemented")
         val playlist = extension.loadPlaylist(
-            Playlist("OLAK5uy_mLltkrEdhQT30snXEjxSf1RZKqq1Zmadg", "", false)
+            Playlist("PLuXxnCIoeAQ84dc7kaIHdUd8j_KCpGjEJ", "", false)
         )
         println(playlist)
         val tracks = extension.loadTracks(playlist).loadFirst()
