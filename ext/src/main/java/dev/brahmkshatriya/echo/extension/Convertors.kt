@@ -3,6 +3,7 @@ package dev.brahmkshatriya.echo.extension
 import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
+import dev.brahmkshatriya.echo.common.models.Date.Companion.toDate
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
 import dev.brahmkshatriya.echo.common.models.ImageHolder
 import dev.brahmkshatriya.echo.common.models.ImageHolder.Companion.toImageHolder
@@ -83,9 +84,8 @@ fun YtmPlaylist.toPlaylist(
         authors = artists?.map { it.toUser(quality) } ?: emptyList(),
         tracks = item_count,
         duration = total_duration,
-        creationDate = year?.toString(),
+        creationDate = year?.toDate(),
         description = description,
-        subtitle = artists?.joinToString(", ") { it.name ?: "Unknown" } ?: year?.toString(),
         extras = extras,
     )
 }
@@ -104,11 +104,10 @@ fun YtmPlaylist.toAlbum(
         cover = thumbnail_provider?.getThumbnailUrl(quality)?.toImageHolder(mapOf()),
         artists = artists?.map { it.toArtist(quality) } ?: emptyList(),
         tracks = item_count ?: if (single) 1 else null,
-        releaseDate = year?.toString(),
+        releaseDate = year?.toDate(),
         publisher = null,
         duration = total_duration,
         description = description,
-        subtitle = year?.toString(),
     )
 }
 
