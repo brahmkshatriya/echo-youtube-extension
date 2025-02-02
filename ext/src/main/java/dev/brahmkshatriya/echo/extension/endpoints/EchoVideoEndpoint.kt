@@ -35,15 +35,17 @@ class EchoVideoEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                 .body<YoutubeFormatResponse>().videoDetails.musicVideoType
             else null
         }
-        val ios = request(iosContext, id, playlist).body<YoutubeFormatResponse>()
+        val ios = request(iosContext(), id, playlist).body<YoutubeFormatResponse>()
         ios to web.await()
     }
 
-    private val iosContext = buildJsonObject {
+    private fun iosContext() = buildJsonObject {
         put("context", buildJsonObject {
             put("client", buildJsonObject {
                 put("clientName", "IOS")
                 put("clientVersion", "19.34.2")
+                println("visitorData ${api.visitor_id}")
+                put("visitorData", api.visitor_id)
             })
         })
     }

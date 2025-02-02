@@ -1,10 +1,10 @@
 package dev.brahmkshatriya.echo.extension.endpoints
 
-import dev.brahmkshatriya.echo.extension.endpoints.EchoPlaylistEndpoint.Companion.parsePlaylistResponse
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiPostBody
 import dev.toastbits.ytmkt.model.ApiEndpoint
 import dev.toastbits.ytmkt.model.external.mediaitem.YtmSong
+import io.ktor.client.call.body
 import io.ktor.client.request.request
 
 class EchoPlaylistContinuationEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
@@ -19,9 +19,19 @@ class EchoPlaylistContinuationEndpoint(override val api: YoutubeiApi) : ApiEndpo
                 url.parameters.append("continuation", ctoken)
                 url.parameters.append("type", "next")
             }
-            postWithBody(YoutubeiPostBody.ANDROID_MUSIC.getPostBody(api))
+            postWithBody(YoutubeiPostBody.BASE.getPostBody(api))
         }
-        val parsed = parsePlaylistResponse("", response, api.data_language, api).first
-        Triple(parsed.items, parsed.item_set_ids, parsed.continuation?.token)
+        val parsed = response.body<YtContinuation>().onResponseReceivedActions.first()
+            .appendContinuationItemsAction.continuationItems
+
+        val cont = parsed.lastOrNull()
+            ?.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token
+        val items = parsed.mapNotNull { it.toMediaItemData(api.data_language, api) }
+
+        Triple(
+            items.map { it.first }.filterIsInstance<YtmSong>(),
+            items.mapNotNull { it.second },
+            cont
+        )
     }
 }

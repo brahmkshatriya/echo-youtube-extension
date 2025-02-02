@@ -50,6 +50,7 @@ import dev.brahmkshatriya.echo.extension.endpoints.EchoSongEndPoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongFeedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoSongRelatedEndpoint
 import dev.brahmkshatriya.echo.extension.endpoints.EchoVideoEndpoint
+import dev.brahmkshatriya.echo.extension.endpoints.EchoVisitorEndpoint
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiApi
 import dev.toastbits.ytmkt.impl.youtubei.YoutubeiAuthenticationState
 import dev.toastbits.ytmkt.model.external.PlaylistEditor
@@ -113,6 +114,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
 
     private val language = ENGLISH
 
+    private val visitorEndpoint = EchoVisitorEndpoint(api)
     private val songFeedEndPoint = EchoSongFeedEndpoint(api)
     private val artistEndPoint = EchoArtistEndpoint(api)
     private val artistMoreEndpoint = EchoArtistMoreEndpoint(api)
@@ -490,28 +492,22 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
         }.getUsers(data, auth)
     }
 
-
-    private var visitorId: String?
-        get() = settings.getString("visitor_id")
-        set(value) = settings.putString("visitor_id", value)
-
     override suspend fun onSetLoginUser(user: User?) {
         if (user == null) {
             api.user_auth_state = null
-            api.visitor_id =
-                visitorId ?: api.GetVisitorId.getVisitorId().getOrThrow().also { visitorId = it }
-            return
-        }
-        val cookie = user.extras["cookie"] ?: throw Exception("No cookie")
-        val auth = user.extras["auth"] ?: throw Exception("No auth")
+        } else {
+            val cookie = user.extras["cookie"] ?: throw Exception("No cookie")
+            val auth = user.extras["auth"] ?: throw Exception("No auth")
 
-        val headers = headers {
-            append("cookie", cookie)
-            append("authorization", auth)
+            val headers = headers {
+                append("cookie", cookie)
+                append("authorization", auth)
+            }
+            val authenticationState =
+                YoutubeiAuthenticationState(api, headers, user.id.ifEmpty { null })
+            api.user_auth_state = authenticationState
         }
-        val authenticationState =
-            YoutubeiAuthenticationState(api, headers, user.id.ifEmpty { null })
-        api.user_auth_state = authenticationState
+        api.visitor_id = visitorEndpoint.getVisitorId()
     }
 
     override suspend fun getCurrentUser(): User? {

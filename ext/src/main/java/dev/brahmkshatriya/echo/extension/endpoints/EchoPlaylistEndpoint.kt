@@ -66,7 +66,6 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
                 }
             }
         }
-
         val (playlist, relation) =
             parsePlaylistResponse(cleanId(id), res, api.data_language, api)
         val songs = PagedData.Continuous { token ->
@@ -138,52 +137,50 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
             api: YtmApi
         ) = run {
             val parsed: YoutubeiBrowseResponse = response.body()
-
             val builder = YtmPlaylistBuilder(playlistId)
             val playlistData = parsed.contents?.twoColumnBrowseResultsRenderer?.tabs?.firstOrNull()
                 ?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()
-                ?.getPlaylistData(hl)!!
+                ?.getPlaylistData(hl)
 
-            builder.name = playlistData.title
-            builder.description = playlistData.description
-            builder.thumbnail_provider = playlistData.thumbnail
-            builder.artists = playlistData.artists
-            builder.year = playlistData.year
-            builder.owner_id = "${playlistData.explicit},${playlistData.isEditable}"
-            builder.item_count = playlistData.count
-            builder.total_duration = playlistData.duration
+            if (playlistData != null) {
+                builder.name = playlistData.title
+                builder.description = playlistData.description
+                builder.thumbnail_provider = playlistData.thumbnail
+                builder.artists = playlistData.artists
+                builder.year = playlistData.year
+                builder.owner_id = "${playlistData.explicit},${playlistData.isEditable}"
+                builder.item_count = playlistData.count
+                builder.total_duration = playlistData.duration
+            }
 
-            val sectionListRenderer = parsed.contents.run {
+            val sectionListRenderer = parsed.contents?.run {
                 singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer
                     ?: twoColumnBrowseResultsRenderer?.secondaryContents?.sectionListRenderer
             }
-
-            var continuationToken: String? = null
-            var count: Int? = null
+            var continuationToken : String?=null
             val items = sectionListRenderer?.contents?.mapNotNull { row ->
-                continuationToken =
-                    row.musicPlaylistShelfRenderer?.continuations?.firstOrNull()?.nextContinuationData?.continuation
-                count =
-                    row.musicPlaylistShelfRenderer?.subFooter?.messageRenderer?.subtext?.messageSubtextRenderer?.text?.runs?.findSongCount()
+                continuationToken = row.musicPlaylistShelfRenderer?.contents?.lastOrNull()
+                    ?.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token
                 row.getMediaItemsAndSetIds(hl, api)?.mapNotNull { (item, set) ->
                     if (item is YtmSong) item to set
                     else null
                 } ?: return@mapNotNull null
             }?.flatten() ?: emptyList()
+
             builder.items = items.map { it.first }
             builder.item_set_ids = items.mapNotNull { it.second }
-            builder.item_count = builder.item_count ?: count
+            builder.item_count = builder.item_count
             builder.continuation = continuationToken?.let {
                 RadioContinuation(it, RadioContinuation.Type.PLAYLIST)
             }
 
             val continuationItems =
-                parsed.continuationContents?.musicPlaylistShelfContinuation?.contents?.map {
+                parsed.continuationContents?.musicPlaylistShelfContinuation?.contents?.mapNotNull {
                     it.toMediaItemData(hl, api)
                 }
             if (continuationItems != null) {
-                builder.items = continuationItems.map { it?.first }.filterIsInstance<YtmSong>()
-                builder.item_set_ids = continuationItems.mapNotNull { it?.second }
+                builder.items = continuationItems.map { it.first }.filterIsInstance<YtmSong>()
+                builder.item_set_ids = continuationItems.mapNotNull { it.second }
                 val cont =
                     parsed.continuationContents.musicPlaylistShelfContinuation.continuations?.firstOrNull()?.nextContinuationData?.continuation
                 builder.continuation =

@@ -123,7 +123,8 @@ data class YoutubeiBrowseResponse(
             val musicTwoRowItemRenderer: MusicTwoRowItemRenderer?,
             val musicResponsiveListItemRenderer: MusicResponsiveListItemRenderer?,
             val musicMultiRowListItemRenderer: MusicMultiRowListItemRenderer?,
-            val musicTwoColumnItemRenderer: MusicTwoColumnItemRenderer?
+            val musicTwoColumnItemRenderer: MusicTwoColumnItemRenderer?,
+            val continuationItemRenderer: ContinuationItemRenderer?
         ) {
 
             // Pair(item, playlistSetVideoId)
@@ -136,7 +137,7 @@ data class YoutubeiBrowseResponse(
                     return Pair(musicMultiRowListItemRenderer.toMediaItem(hl), null)
                 } else if (musicTwoColumnItemRenderer != null) {
                     return musicTwoColumnItemRenderer.toMediaItemData(hl)
-                }
+                } else if (continuationItemRenderer != null) return null
 
                 throw NotImplementedError()
             }
@@ -152,7 +153,8 @@ data class YoutubeiBrowseResponse(
             ?: musicDescriptionShelfRenderer ?: musicCardShelfRenderer ?: gridRenderer
 
 
-        fun getPlaylistData(hl: String) = (musicResponsiveHeaderRenderer ?: musicEditablePlaylistDetailHeaderRenderer?.header?.musicResponsiveHeaderRenderer)?.run {
+        fun getPlaylistData(hl: String) = (musicResponsiveHeaderRenderer
+            ?: musicEditablePlaylistDetailHeaderRenderer?.header?.musicResponsiveHeaderRenderer)?.run {
             val title = title?.runs?.firstOrNull()?.text ?: "Unknown"
             val thumbnail = thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.let {
                 ThumbnailProvider.fromThumbnails(it)
@@ -180,8 +182,9 @@ data class YoutubeiBrowseResponse(
                 val id = it.navigationEndpoint?.browseEndpoint?.browseId ?: return@mapNotNull null
                 YtmArtist(id, it.text)
             } ?: emptyList()
-            val isExplicit = subtitleBadge?.any { it.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE" }
-                ?: false
+            val isExplicit =
+                subtitleBadge?.any { it.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE" }
+                    ?: false
             PlaylistData(
                 title = title,
                 description = description,
@@ -195,6 +198,21 @@ data class YoutubeiBrowseResponse(
             )
         }
     }
+
+    @Serializable
+    data class ContinuationItemRenderer(
+        val continuationEndpoint: ContinuationEndpoint
+    )
+
+    @Serializable
+    data class ContinuationEndpoint(
+        val continuationCommand: ContinuationCommand
+    )
+
+    @Serializable
+    data class ContinuationCommand(
+        val token: String
+    )
 
     @Serializable
     data class ContinuationContents(

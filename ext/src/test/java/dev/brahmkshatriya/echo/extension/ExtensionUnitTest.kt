@@ -4,6 +4,7 @@ import dev.brahmkshatriya.echo.common.clients.AlbumClient
 import dev.brahmkshatriya.echo.common.clients.ArtistClient
 import dev.brahmkshatriya.echo.common.clients.ExtensionClient
 import dev.brahmkshatriya.echo.common.clients.HomeFeedClient
+import dev.brahmkshatriya.echo.common.clients.LoginClient
 import dev.brahmkshatriya.echo.common.clients.LyricsClient
 import dev.brahmkshatriya.echo.common.clients.PlaylistClient
 import dev.brahmkshatriya.echo.common.clients.RadioClient
@@ -42,7 +43,10 @@ class ExtensionUnitTest {
     fun setUp() {
         Dispatchers.setMain(mainThreadSurrogate)
         extension.setSettings(MockedSettings())
-        runBlocking { extension.onExtensionSelected() }
+        runBlocking {
+            extension.onExtensionSelected()
+            (extension as? LoginClient)?.onSetLoginUser(null)
+        }
     }
 
     @After
@@ -209,17 +213,15 @@ class ExtensionUnitTest {
     fun testPlaylistMediaItems() = testIn("Testing Playlist Media Items") {
         if (extension !is PlaylistClient) error("PlaylistClient is not implemented")
         val playlist = extension.loadPlaylist(
-            Playlist("PLuXxnCIoeAQ84dc7kaIHdUd8j_KCpGjEJ", "", false)
+            Playlist("RDCLAK5uy_kPazyVLjdDuNJ_OxrjeXIyMYeKsz7vVAU", "", false)
         )
         println(playlist)
-        val tracks = extension.loadTracks(playlist).loadFirst()
-        tracks.forEach {
-            println(it)
-        }
-        val mediaItems = extension.getShelves(playlist).loadFirst()
-        mediaItems.forEach {
-            println(it)
-        }
+        val tracks = extension.loadTracks(playlist).loadAll()
+        println(tracks.size)
+//        val mediaItems = extension.getShelves(playlist).loadFirst()
+//        mediaItems.forEach {
+//            println(it)
+//        }
     }
 
     @Test
