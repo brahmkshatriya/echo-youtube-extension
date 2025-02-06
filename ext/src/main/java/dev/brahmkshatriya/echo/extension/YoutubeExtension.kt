@@ -65,11 +65,8 @@ import io.ktor.client.request.request
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.headers
 import io.ktor.http.takeFrom
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import java.security.MessageDigest
 
@@ -99,13 +96,9 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
     )
 
     private lateinit var settings: Settings
-    private val scope = CoroutineScope(Dispatchers.IO)
     override fun setSettings(settings: Settings) {
         this.settings = settings
-        scope.launch { api.visitor_id = visitorEndpoint.getVisitorId() }
     }
-
-    override suspend fun onExtensionSelected() {}
 
     val api = YoutubeiApi()
     private val thumbnailQuality
