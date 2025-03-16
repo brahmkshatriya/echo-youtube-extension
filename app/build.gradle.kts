@@ -83,17 +83,7 @@ android {
         extRepoUrl?.let { resValue("string", "repo_url", it) }
         extUpdateUrl?.let { resValue("string", "update_url", it) }
     }
-
-    buildTypes {
-        all {
-            isMinifyEnabled = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-
+    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
