@@ -168,7 +168,7 @@ class EchoPlaylistEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
             }?.flatten() ?: emptyList()
 
             builder.items = items.map { it.first }
-            builder.item_set_ids = items.mapNotNull { it.second }
+            builder.item_set_ids = items.map { it.second ?: "Unknown" }
             builder.item_count = builder.item_count
             builder.continuation = continuationToken?.let {
                 RadioContinuation(it, RadioContinuation.Type.PLAYLIST)
