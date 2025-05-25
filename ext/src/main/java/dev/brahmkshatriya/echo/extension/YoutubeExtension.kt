@@ -20,6 +20,7 @@ import dev.brahmkshatriya.echo.common.clients.UserClient
 import dev.brahmkshatriya.echo.common.helpers.ClientException
 import dev.brahmkshatriya.echo.common.helpers.Page
 import dev.brahmkshatriya.echo.common.helpers.PagedData
+import dev.brahmkshatriya.echo.common.helpers.WebViewRequest
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
@@ -27,6 +28,7 @@ import dev.brahmkshatriya.echo.common.models.Lyrics
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.QuickSearchItem
 import dev.brahmkshatriya.echo.common.models.Radio
+import dev.brahmkshatriya.echo.common.models.Request
 import dev.brahmkshatriya.echo.common.models.Request.Companion.toRequest
 import dev.brahmkshatriya.echo.common.models.Shelf
 import dev.brahmkshatriya.echo.common.models.Streamable
@@ -71,7 +73,7 @@ import kotlinx.serialization.encodeToString
 import java.security.MessageDigest
 
 class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFeedClient,
-    RadioClient, AlbumClient, ArtistClient, UserClient, PlaylistClient, LoginClient.WebView.Cookie,
+    RadioClient, AlbumClient, ArtistClient, UserClient, PlaylistClient, LoginClient.WebView,
     TrackerClient, LibraryFeedClient, ShareClient, LyricsClient, ArtistFollowClient,
     TrackLikeClient, PlaylistEditClient {
 
@@ -438,7 +440,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
         val cont = playlist.extras["relatedId"] ?: throw Exception("No related id found.")
         if (cont.startsWith("id://")) {
             val id = cont.substring(5)
-            getShelves(loadTrack(Track(id, ""))).loadFirst()
+            getShelves(loadTrack(Track(id, ""))).loadList(null).data
                 .filterIsInstance<Shelf.Category>()
         } else {
             val continuation = songRelatedEndpoint.loadFromPlaylist(cont).getOrThrow()
@@ -460,34 +462,29 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
     override fun loadTracks(playlist: Playlist): PagedData<Track> = trackMap[playlist.id]!!
 
 
-    override val loginWebViewInitialUrl =
-        "https://accounts.google.com/v3/signin/identifier?dsh=S1527412391%3A1678373417598386&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den-GB%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F%253Fcbrd%253D1%26feature%3D__FEATURE__&hl=en-GB&ifkv=AWnogHfK4OXI8X1zVlVjzzjybvICXS4ojnbvzpE4Gn_Pfddw7fs3ERdfk-q3tRimJuoXjfofz6wuzg&ltmpl=music&passive=true&service=youtube&uilel=3&flowName=GlifWebSignIn&flowEntry=ServiceLogin".toRequest()
-
-    override val loginWebViewStopUrlRegex = "https://music\\.youtube\\.com/.*".toRegex()
-
-    override suspend fun onLoginWebviewStop(url: String, data: String): List<User> {
-        if (!data.contains("SAPISID")) throw Exception("Login Failed, could not load SAPISID")
-        val auth = run {
-            val currentTime = System.currentTimeMillis() / 1000
-            val id = data.split("SAPISID=")[1].split(";")[0]
-            val str = "$currentTime $id https://music.youtube.com"
-            val idHash = MessageDigest.getInstance("SHA-1").digest(str.toByteArray())
-                .joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
-            "SAPISIDHASH ${currentTime}_${idHash}"
-        }
-        val headersMap = mutableMapOf(
-            "cookie" to data, "authorization" to auth
-        )
-
-        val headers = headers {
-            headersMap.forEach { (t, u) -> append(t, u) }
-        }
-        return api.client.request("https://music.youtube.com/getAccountSwitcherEndpoint") {
-            headers {
-                append("referer", "https://music.youtube.com/")
-                appendAll(headers)
+    override val webViewRequest = object : WebViewRequest.Cookie<List<User>> {
+        override val initialUrl =
+            "https://accounts.google.com/v3/signin/identifier?dsh=S1527412391%3A1678373417598386&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26hl%3Den-GB%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F%253Fcbrd%253D1%26feature%3D__FEATURE__&hl=en-GB&ifkv=AWnogHfK4OXI8X1zVlVjzzjybvICXS4ojnbvzpE4Gn_Pfddw7fs3ERdfk-q3tRimJuoXjfofz6wuzg&ltmpl=music&passive=true&service=youtube&uilel=3&flowName=GlifWebSignIn&flowEntry=ServiceLogin".toRequest()
+        override val stopUrlRegex = "https://music\\.youtube\\.com/.*".toRegex()
+        override suspend fun onStop(url: Request, cookie: String): List<User> {
+            if (!cookie.contains("SAPISID")) throw Exception("Login Failed, could not load SAPISID")
+            val auth = run {
+                val currentTime = System.currentTimeMillis() / 1000
+                val id = cookie.split("SAPISID=")[1].split(";")[0]
+                val str = "$currentTime $id https://music.youtube.com"
+                val idHash = MessageDigest.getInstance("SHA-1").digest(str.toByteArray())
+                    .joinToString(separator = "") { eachByte -> "%02x".format(eachByte) }
+                "SAPISIDHASH ${currentTime}_${idHash}"
             }
-        }.getUsers(data, auth)
+            val headersMap = mutableMapOf("cookie" to cookie, "authorization" to auth)
+            val headers = headers { headersMap.forEach { (t, u) -> append(t, u) } }
+            return api.client.request("https://music.youtube.com/getAccountSwitcherEndpoint") {
+                headers {
+                    append("referer", "https://music.youtube.com/")
+                    appendAll(headers)
+                }
+            }.getUsers(cookie, auth)
+        }
     }
 
     override suspend fun onSetLoginUser(user: User?) {
@@ -578,12 +575,13 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
         withUserAuth { it.SetSongLiked.setSongLiked(track.id, likeStatus).getOrThrow() }
     }
 
-    override suspend fun listEditablePlaylists(): List<Playlist> = withUserAuth { auth ->
-        auth.AccountPlaylists.getAccountPlaylists().getOrThrow().mapNotNull {
-            if (it.id != "VLSE") it.toPlaylist(thumbnailQuality)
-            else null
+    override suspend fun listEditablePlaylists(track: Track?): List<Pair<Playlist, Boolean>> =
+        withUserAuth { auth ->
+            auth.AccountPlaylists.getAccountPlaylists().getOrThrow().mapNotNull {
+                if (it.id != "VLSE") it.toPlaylist(thumbnailQuality) to false
+                else null
+            }
         }
-    }
 
     override suspend fun editPlaylistMetadata(
         playlist: Playlist, title: String, description: String?

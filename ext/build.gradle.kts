@@ -1,12 +1,12 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import java.io.ByteArrayOutputStream
+import java.io.IOException
 
 plugins {
     id("java-library")
     id("org.jetbrains.kotlin.jvm")
     id("maven-publish")
-    kotlin("plugin.serialization") version "1.9.22"
     id("com.gradleup.shadow") version "8.3.0"
+    kotlin("plugin.serialization") version "1.9.22"
 }
 
 java {
@@ -14,24 +14,33 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+kotlin {
+    jvmToolchain(17)
+}
+
+fun <T : ModuleDependency> T.excludeKotlin() {
+    exclude("org.jetbrains.kotlin", "kotlin-stdlib")
+    exclude("org.jetbrains.kotlinx", "kotlinx-coroutines-core")
+}
 
 dependencies {
-    val libVersion by project.properties
+    val libVersion: String by project
     compileOnly("com.github.brahmkshatriya:echo:$libVersion")
-    implementation("dev.toastbits.ytmkt:ytmkt:0.3.2")
+    compileOnly("org.jetbrains.kotlin:kotlin-stdlib:2.1.0")
 
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
-
+    implementation("dev.toastbits.ytmkt:ytmkt:0.3.2") { excludeKotlin() }
     val ktorVersion = "3.0.0-beta-2"
-    implementation("io.ktor:ktor-client-core:$ktorVersion")
-    implementation("io.ktor:ktor-client-cio:$ktorVersion")
-    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+    implementation("io.ktor:ktor-client-core:$ktorVersion") { excludeKotlin() }
+    implementation("io.ktor:ktor-client-cio:$ktorVersion") { excludeKotlin() }
+    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion") { excludeKotlin() }
+    implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion") { excludeKotlin() }
 
     testImplementation("junit:junit:4.13.2")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
     testImplementation("com.github.brahmkshatriya:echo:$libVersion")
 }
+
+// Extension properties goto `gradle.properties` to set values
 
 val extType: String by project
 val extId: String by project
@@ -94,10 +103,23 @@ tasks {
 }
 
 fun execute(vararg command: String): String {
-    val outputStream = ByteArrayOutputStream()
-    project.exec {
-        commandLine(*command)
-        standardOutput = outputStream
+    val process = ProcessBuilder(*command)
+        .redirectOutput(ProcessBuilder.Redirect.PIPE)
+        .redirectError(ProcessBuilder.Redirect.PIPE)
+        .start()
+
+    val output = process.inputStream.bufferedReader().readText()
+    val errorOutput = process.errorStream.bufferedReader().readText()
+
+    val exitCode = process.waitFor()
+
+    if (exitCode != 0) {
+        throw IOException(
+            "Command failed with exit code $exitCode. Command: ${command.joinToString(" ")}\n" +
+                    "Stdout:\n$output\n" +
+                    "Stderr:\n$errorOutput"
+        )
     }
-    return outputStream.toString().trim()
+
+    return output.trim()
 }
