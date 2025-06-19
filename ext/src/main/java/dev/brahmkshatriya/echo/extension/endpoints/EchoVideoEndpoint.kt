@@ -44,7 +44,6 @@ class EchoVideoEndpoint(override val api: YoutubeiApi) : ApiEndpoint() {
             put("client", buildJsonObject {
                 put("clientName", "IOS")
                 put("clientVersion", "19.34.2")
-                println("visitorData ${api.visitor_id}")
                 put("visitorData", api.visitor_id)
             })
         })

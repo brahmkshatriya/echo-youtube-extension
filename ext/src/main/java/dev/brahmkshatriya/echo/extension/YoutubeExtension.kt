@@ -24,6 +24,7 @@ import dev.brahmkshatriya.echo.common.helpers.WebViewRequest
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.EchoMediaItem
+import dev.brahmkshatriya.echo.common.models.Feed.Companion.toFeed
 import dev.brahmkshatriya.echo.common.models.Lyrics
 import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.QuickSearchItem
@@ -64,9 +65,7 @@ import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.headers
 import io.ktor.client.request.request
-import io.ktor.client.statement.bodyAsText
 import io.ktor.http.headers
-import io.ktor.http.takeFrom
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.encodeToString
@@ -89,7 +88,8 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
             "high_quality",
             "Use high quality thumbnails, will cause more data usage.",
             false
-        ), SettingSwitch(
+        ),
+        SettingSwitch(
             "Resolve to Music for Videos",
             "resolve_music_for_videos",
             "Resolve actual music metadata for music videos, does slow down loading music videos.",
@@ -145,7 +145,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
             itemLayout.toShelf(api, SINGLES, thumbnailQuality)
         }
         Page(data, result.ctoken)
-    }
+    }.toFeed()
 
     private suspend fun searchSongForVideo(title: String, artists: String): Track? {
         val result = searchEndpoint.search(
@@ -160,26 +160,10 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
         return newTrack
     }
 
-    private val audioRegex = Regex("#EXT-X-MEDIA:URI=\"(.*)\",TYPE=AUDIO,GROUP-ID=\"(.*)\",NAME")
     override suspend fun loadStreamableMedia(
         streamable: Streamable, isDownload: Boolean
     ): Streamable.Media = when (streamable.type) {
         Streamable.MediaType.Server -> when (streamable.id) {
-            "AUDIO_M3U8" -> {
-                val hlsManifestUrl = streamable.extras["url"]!!
-                val res = api.client.request { url.takeFrom(hlsManifestUrl) }.bodyAsText()
-                Streamable.Media.Server(
-                    audioRegex.findAll(res).map {
-                        Streamable.Source.Http(
-                            it.groupValues[1].toRequest(),
-                            Streamable.SourceType.HLS,
-                            quality = it.groupValues[2].toInt()
-                        )
-                    }.toList(),
-                    true
-                )
-            }
-
             "VIDEO_M3U8" -> {
                 val hlsManifestUrl = streamable.extras["url"]!!
                 hlsManifestUrl.toServerMedia(type = Streamable.SourceType.HLS)
@@ -213,7 +197,6 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
             searchSongForVideo(video.videoDetails.title!!, video.videoDetails.author)
         } else null
 
-
         val hlsUrl = video.streamingData.hlsManifestUrl!!
         val audioFiles = video.streamingData.adaptiveFormats.mapNotNull {
             if (!it.mimeType.contains("audio")) return@mapNotNull null
@@ -227,20 +210,14 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
             },
             streamables = listOfNotNull(
                 Streamable.server(
-                    "AUDIO_M3U8",
-                    2,
-                    "Audio M3U8",
-                    mapOf("url" to hlsUrl)
-                ),
-                Streamable.server(
                     "VIDEO_M3U8",
-                    3,
+                    0,
                     "Video M3U8",
                     mapOf("url" to hlsUrl)
                 ).takeIf { !isMusic && showVideos },
                 Streamable.server(
                     "AUDIO_MP3",
-                    1,
+                    0,
                     "Audio MP3",
                     audioFiles
                 ).takeIf { audioFiles.isNotEmpty() },
@@ -275,30 +252,28 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
 
 
     private var oldSearch: Pair<String, List<Shelf>>? = null
-    override fun searchFeed(query: String, tab: Tab?): PagedData<Shelf> =
-        if (query.isNotBlank()) PagedData.Single {
-            val old = oldSearch?.takeIf {
-                it.first == query && (tab == null || tab.id == "All")
-            }?.second
-            if (old != null) return@Single old
-            val search = api.Search.search(query, tab?.id).getOrThrow()
-            val list = search.categories.map { (itemLayout, _) ->
-                itemLayout.items.mapNotNull { item ->
-                    item.toEchoMediaItem(false, thumbnailQuality)?.toShelf()
-                }
-            }.flatten()
-            list
-        } else if (tab != null) PagedData.Continuous {
-            val params = tab.id
-            val continuation = it
-            val result = songFeedEndPoint.getSongFeed(
-                params = params, continuation = continuation
-            ).getOrThrow()
-            val data = result.layouts.map { itemLayout ->
-                itemLayout.toShelf(api, SINGLES, thumbnailQuality)
+    override fun searchFeed(query: String, tab: Tab?) = if (query.isNotBlank()) PagedData.Single {
+        val old = oldSearch?.takeIf {
+            it.first == query && (tab == null || tab.id == "All")
+        }?.second
+        if (old != null) return@Single old
+        val search = api.Search.search(query, tab?.id).getOrThrow()
+        search.categories.map { (itemLayout, _) ->
+            itemLayout.items.mapNotNull { item ->
+                item.toEchoMediaItem(false, thumbnailQuality)?.toShelf()
             }
-            Page(data, result.ctoken)
-        } else PagedData.Single { listOf() }
+        }.flatten()
+    }.toFeed() else if (tab != null) PagedData.Continuous {
+        val params = tab.id
+        val continuation = it
+        val result = songFeedEndPoint.getSongFeed(
+            params = params, continuation = continuation
+        ).getOrThrow()
+        val data = result.layouts.map { itemLayout ->
+            itemLayout.toShelf(api, SINGLES, thumbnailQuality)
+        }
+        Page(data, result.ctoken)
+    }.toFeed() else PagedData.Single<Shelf> { listOf() }.toFeed()
 
     override suspend fun searchTabs(query: String): List<Tab> {
         if (query.isNotBlank()) {
@@ -555,7 +530,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
             playlist.toEchoMediaItem(false, thumbnailQuality)?.toShelf()
         }
         Page(data, ctoken)
-    }
+    }.toFeed()
 
     override suspend fun createPlaylist(title: String, description: String?): Playlist {
         val playlistId = withUserAuth {

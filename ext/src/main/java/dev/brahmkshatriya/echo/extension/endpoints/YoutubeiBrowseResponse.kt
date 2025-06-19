@@ -138,8 +138,7 @@ data class YoutubeiBrowseResponse(
                 } else if (musicTwoColumnItemRenderer != null) {
                     return musicTwoColumnItemRenderer.toMediaItemData(hl)
                 } else if (continuationItemRenderer != null) return null
-
-                throw NotImplementedError()
+                return null
             }
         }
 
