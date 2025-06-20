@@ -175,7 +175,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
         Streamable.MediaType.Server -> when (streamable.id) {
             "VIDEO_M3U8" -> {
                 val hlsManifestUrl = streamable.extras["url"]!!
-                hlsManifestUrl.toServerMedia(type = Streamable.SourceType.HLS)
+                hlsManifestUrl.toServerMedia(type = Streamable.SourceType.HLS, isVideo = true)
             }
 
             "AUDIO_MP3" -> {

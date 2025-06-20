@@ -105,7 +105,7 @@ fun YtmPlaylist.toAlbum(
         artists = artists?.map { it.toArtist(quality) } ?: emptyList(),
         tracks = item_count ?: if (single) 1 else null,
         releaseDate = year?.toDate(),
-        publisher = null,
+        label = null,
         duration = total_duration,
         description = description,
     )
