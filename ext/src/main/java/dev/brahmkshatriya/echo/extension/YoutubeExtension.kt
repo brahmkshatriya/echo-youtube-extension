@@ -78,9 +78,21 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
 
     override val settingItems: List<Setting> = listOf(
         SettingSwitch(
+            "Prefer Videos",
+            "prefer_videos",
+            "Prefer videos over audio when available",
+            false
+        ),
+        SettingSwitch(
             "Show Videos",
             "show_videos",
             "Allows videos to be available when playing stuff. Instead of disabling videos, change the streaming quality as Medium in the app settings to select audio only by default.",
+            true
+        ),
+        SettingSwitch(
+            "Resolve to Music for Videos",
+            "resolve_music_for_videos",
+            "Resolve actual music metadata for music videos, does slow down loading music videos.",
             true
         ),
         SettingSwitch(
@@ -89,12 +101,6 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
             "Use high quality thumbnails, will cause more data usage.",
             false
         ),
-        SettingSwitch(
-            "Resolve to Music for Videos",
-            "resolve_music_for_videos",
-            "Resolve actual music metadata for music videos, does slow down loading music videos.",
-            true
-        )
     )
 
     private lateinit var settings: Settings
@@ -111,6 +117,9 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
 
     private val showVideos
         get() = settings.getBoolean("show_videos") ?: true
+
+    private val preferVideos
+        get() = settings.getBoolean("prefer_videos") ?: false
 
     private val language = ENGLISH
 
@@ -221,7 +230,7 @@ class YoutubeExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchFee
                     "Audio MP3",
                     audioFiles
                 ).takeIf { audioFiles.isNotEmpty() },
-            ),
+            ).let { if (preferVideos) it else it.reversed() },
             plays = video.videoDetails.viewCount?.toLongOrNull()
         )
     }
